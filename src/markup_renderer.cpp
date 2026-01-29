@@ -1,16 +1,17 @@
 #include "markup_renderer.hpp"
 #include <iostream>
+#include <algorithm>
 
 namespace screen_renderer
 {
 
-MarkupRenderer::MarkupRenderer()
+markup_renderer_t::markup_renderer_t()
 {
 }
 
-auto MarkupRenderer::load_layout(const std::string &filename) -> bool
+auto markup_renderer_t::load_layout(const std::string &filename) -> bool
 {
-  m_root = SimpleMarkupParser::parse_file(filename);
+  m_root = simple_markup_parser_t::parse_file(filename);
   if (!m_root)
   {
     std::cerr << "Failed to parse markup file: " << filename << std::endl;
@@ -24,15 +25,15 @@ auto MarkupRenderer::load_layout(const std::string &filename) -> bool
   return true;
 }
 
-auto MarkupRenderer::load_layout_from_string(const std::string &xml_content) -> bool
+auto markup_renderer_t::load_layout_from_string(const std::string &xml_content) -> bool
 {
-  std::vector<ParseError> errors;
+  std::vector<parse_error_t> errors;
   return load_layout_from_string(xml_content, errors);
 }
 
-auto MarkupRenderer::load_layout_from_string(const std::string &xml_content, std::vector<ParseError> &out_errors) -> bool
+auto markup_renderer_t::load_layout_from_string(const std::string &xml_content, std::vector<parse_error_t> &out_errors) -> bool
 {
-  m_root = SimpleMarkupParser::parse(xml_content, out_errors);
+  m_root = simple_markup_parser_t::parse(xml_content, out_errors);
   if (!m_root)
   {
     return false;
@@ -46,47 +47,51 @@ auto MarkupRenderer::load_layout_from_string(const std::string &xml_content, std
 }
 
 // Helper to find element recursively
-auto find_element_by_line(std::shared_ptr<Element> element, int line) -> std::shared_ptr<Element>
+auto find_element_by_line(std::shared_ptr<element_t> element, int line) -> std::shared_ptr<element_t>
 {
   if (!element)
+  {
     return nullptr;
+  }
 
   // Check if line is within this element's range
   // Note: we want the most specific (deepest) child that contains the line.
   // But children might not cover the entire range of the parent (e.g. text content).
 
-  if (line >= element->start_line && line <= element->end_line)
+  if (line >= element->get_start_line() && line <= element->get_end_line())
   {
     // Check children first
-    for (auto &child : element->children)
+    for (auto &child : element->get_children())
     {
       auto found = find_element_by_line(child, line);
       if (found)
+      {
         return found;
+      }
     }
     return element;
   }
   return nullptr;
 }
 
-auto MarkupRenderer::get_element_at_line(int line) -> std::shared_ptr<Element>
+auto markup_renderer_t::get_element_at_line(int line) -> std::shared_ptr<element_t>
 {
   return find_element_by_line(m_root, line);
 }
 
 // Helper to check if point is inside element
-static auto is_point_in_element(std::shared_ptr<Element> element, int px, int py) -> bool
+static auto is_point_in_element(std::shared_ptr<element_t> element, int px, int py) -> bool
 {
   int x = element->get_int_attribute("x", 0);
   int y = element->get_int_attribute("y", 0);
 
-  if (element->name == "rect")
+  if (element->get_name() == "rect")
   {
     int w = element->get_int_attribute("w", 0);
     int h = element->get_int_attribute("h", 0);
     return px >= x && px < x + w && py >= y && py < y + h;
   }
-  else if (element->name == "circle")
+  else if (element->get_name() == "circle")
   {
     int cx = element->get_int_attribute("cx", 0);
     int cy = element->get_int_attribute("cy", 0);
@@ -95,7 +100,7 @@ static auto is_point_in_element(std::shared_ptr<Element> element, int px, int py
     int dy = py - cy;
     return (dx * dx + dy * dy) <= (r * r);
   }
-  else if (element->name == "line")
+  else if (element->get_name() == "line")
   {
     // Simple bounding box for line? Or distance?
     // Let's use bounding box for now
@@ -110,9 +115,9 @@ static auto is_point_in_element(std::shared_ptr<Element> element, int px, int py
     // Add some tolerance
     return px >= lx - 2 && px <= lx + lw + 2 && py >= ly - 2 && py <= ly + lh + 2;
   }
-  else if (element->name == "text")
+  else if (element->get_name() == "text")
   {
-    int w = element->text_content.length() * 6 * element->get_int_attribute("scale", 1);
+    int w = element->get_text_content().length() * 6 * element->get_int_attribute("scale", 1);
     int h = 8 * element->get_int_attribute("scale", 1);
     return px >= x && px < x + w && py >= y && py < y + h;
   }
@@ -120,17 +125,22 @@ static auto is_point_in_element(std::shared_ptr<Element> element, int px, int py
 }
 
 // Helper to find element by position recursively
-auto find_element_by_pos(std::shared_ptr<Element> element, int x, int y) -> std::shared_ptr<Element>
+auto find_element_by_pos(std::shared_ptr<element_t> element, int x, int y) -> std::shared_ptr<element_t>
 {
   if (!element)
+  {
     return nullptr;
+  }
 
   // Check children first (reverse order to hit top-most)
-  for (auto it = element->children.rbegin(); it != element->children.rend(); ++it)
+  const auto &children = element->get_children();
+  for (auto it = children.rbegin(); it != children.rend(); ++it)
   {
     auto found = find_element_by_pos(*it, x, y);
     if (found)
+    {
       return found;
+    }
   }
 
   // Check self
@@ -142,15 +152,17 @@ auto find_element_by_pos(std::shared_ptr<Element> element, int x, int y) -> std:
   return nullptr;
 }
 
-auto MarkupRenderer::get_element_at_pos(int x, int y) -> std::shared_ptr<Element>
+auto markup_renderer_t::get_element_at_pos(int x, int y) -> std::shared_ptr<element_t>
 {
   return find_element_by_pos(m_root, x, y);
 }
 
-auto MarkupRenderer::build_id_map(std::shared_ptr<Element> element) -> void
+auto markup_renderer_t::build_id_map(std::shared_ptr<element_t> element) -> void
 {
   if (!element)
+  {
     return;
+  }
 
   std::string id = element->get_attribute("id");
   if (!id.empty())
@@ -158,23 +170,23 @@ auto MarkupRenderer::build_id_map(std::shared_ptr<Element> element) -> void
     m_id_map[id] = element;
   }
 
-  for (auto &child : element->children)
+  for (auto &child : element->get_children())
   {
     build_id_map(child);
   }
 }
 
-auto MarkupRenderer::set_text(const std::string &id, const std::string &text) -> void
+auto markup_renderer_t::set_text(const std::string &id, const std::string &text) -> void
 {
   m_text_map[id] = text;
 }
 
-auto MarkupRenderer::set_visible(const std::string &id, bool visible) -> void
+auto markup_renderer_t::set_visible(const std::string &id, bool visible) -> void
 {
   m_visibility_map[id] = visible;
 }
 
-auto MarkupRenderer::find_element_by_id(const std::string &id) -> std::shared_ptr<Element>
+auto markup_renderer_t::find_element_by_id(const std::string &id) -> std::shared_ptr<element_t>
 {
   auto it = m_id_map.find(id);
   if (it != m_id_map.end())
@@ -214,7 +226,9 @@ static void draw_digit_scaled(screen_t &screen, int x, int y, int digit, int sca
   };
 
   if (digit < 0 || digit > 9)
+  {
     return;
+  }
   const bool *d = digits[digit];
   for (int r = 0; r < 5; ++r)
   {
@@ -250,7 +264,8 @@ static void draw_text_big(screen_t &screen, int x, int y, const std::string &tex
 // Bresenham's Circle Algorithm
 static void draw_circle(screen_t &screen, int xc, int yc, int r, bool fill)
 {
-  int x = 0, y = r;
+  int x = 0;
+  int y = r;
   int d = 3 - 2 * r;
 
   auto draw_circle_points = [&](int xc, int yc, int x, int y)
@@ -291,17 +306,21 @@ static void draw_circle(screen_t &screen, int xc, int yc, int r, bool fill)
   }
 }
 
-auto MarkupRenderer::render(screen_t &screen) -> void
+auto markup_renderer_t::render(screen_t &screen) -> void
 {
   if (!m_root)
+  {
     return;
+  }
   render_element(screen, m_root);
 }
 
-auto MarkupRenderer::render_element(screen_t &screen, const std::shared_ptr<Element> &element) -> void
+auto markup_renderer_t::render_element(screen_t &screen, const std::shared_ptr<element_t> &element) -> void
 {
   if (!element)
+  {
     return;
+  }
 
   // Check visibility
   std::string id = element->get_attribute("id");
@@ -322,7 +341,7 @@ auto MarkupRenderer::render_element(screen_t &screen, const std::shared_ptr<Elem
   }
 
   // Render specific types
-  if (element->name == "text")
+  if (element->get_name() == "text")
   {
     int x = element->get_int_attribute("x");
     int y = element->get_int_attribute("y");
@@ -331,7 +350,7 @@ auto MarkupRenderer::render_element(screen_t &screen, const std::shared_ptr<Elem
     std::string content = element->get_attribute("text");
     if (content.empty())
     {
-      content = element->text_content;
+      content = element->get_text_content();
     }
 
     // Override content if in map
@@ -353,7 +372,7 @@ auto MarkupRenderer::render_element(screen_t &screen, const std::shared_ptr<Elem
       screen.draw_text(m_font, content, x, y, 1);
     }
   }
-  else if (element->name == "rect")
+  else if (element->get_name() == "rect")
   {
     int x = element->get_int_attribute("x");
     int y = element->get_int_attribute("y");
@@ -370,7 +389,7 @@ auto MarkupRenderer::render_element(screen_t &screen, const std::shared_ptr<Elem
       screen.draw_rect(x, y, w, h, true);
     }
   }
-  else if (element->name == "line")
+  else if (element->get_name() == "line")
   {
     int x1 = element->get_int_attribute("x1");
     int y1 = element->get_int_attribute("y1");
@@ -378,7 +397,7 @@ auto MarkupRenderer::render_element(screen_t &screen, const std::shared_ptr<Elem
     int y2 = element->get_int_attribute("y2");
     screen.draw_line(x1, y1, x2, y2, true);
   }
-  else if (element->name == "circle")
+  else if (element->get_name() == "circle")
   {
     int x = element->get_int_attribute("cx");
     int y = element->get_int_attribute("cy");
@@ -388,7 +407,7 @@ auto MarkupRenderer::render_element(screen_t &screen, const std::shared_ptr<Elem
   }
 
   // Render children
-  for (auto &child : element->children)
+  for (auto &child : element->get_children())
   {
     render_element(screen, child);
   }

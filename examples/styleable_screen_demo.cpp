@@ -1,12 +1,12 @@
+#include "markup_renderer.hpp"
 #include "screen.hpp"
 #include "screen_renderer.hpp"
-#include "markup_renderer.hpp"
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
-#include <iostream>
 #include <cmath>
-#include <sstream>
 #include <iomanip>
+#include <iostream>
+#include <sstream>
 
 using namespace screen_renderer;
 
@@ -51,7 +51,7 @@ auto main() -> int
   screen_renderer_t renderer(0.0f, 0.0f, 0.0f, 0.0f, 0.5f, 1.0f); // default blue style
 
   // Load Markup
-  MarkupRenderer markup_renderer;
+  markup_renderer_t markup_renderer;
   if (!markup_renderer.load_layout("examples/assets/sensor_layout.xml"))
   {
     std::cerr << "Failed to load layout file." << std::endl;
@@ -72,7 +72,9 @@ auto main() -> int
     int detected_drones = static_cast<int>(std::abs(std::sin(animation_time * 0.2f)) * 12);
     int battery = 100 - (int)(animation_time);
     if (battery < 0)
+    {
       battery = 0;
+    }
 
     // Update Markup
     markup_renderer.set_text("drone_count", std::to_string(detected_drones));
@@ -98,9 +100,13 @@ auto main() -> int
     int bar_w = 36;
     int fill_w = (int)((cpu_temp / max_temp) * (float)(bar_w - 2));
     if (fill_w > bar_w - 2)
+    {
       fill_w = bar_w - 2;
+    }
     if (fill_w < 0)
+    {
       fill_w = 0;
+    }
 
     // Draw filled rect at 89, 45 (inside the 88,44 rect with 1px border)
     for (int i = 0; i < fill_w; ++i)
@@ -115,14 +121,18 @@ auto main() -> int
     // We need to simulate history since we don't have the struct
     static std::vector<float> history;
     if (history.size() < 40)
+    {
       history.push_back(0); // init
+    }
     // Update history occasionally
     static float last_update = 0;
     if (animation_time - last_update > 0.5f)
     {
       history.push_back((float)detected_drones);
       if (history.size() > 40)
+      {
         history.erase(history.begin());
+      }
       last_update = animation_time;
     }
 
@@ -144,15 +154,21 @@ auto main() -> int
         // norm 0-15
         float norm = 1.0f - (val / 15.0f);
         if (norm < 0)
+        {
           norm = 0;
+        }
         if (norm > 1)
+        {
           norm = 1;
+        }
 
         int py = graph_y + 1 + (int)(norm * (graph_h - 3));
         int px = graph_x + 1 + (int)(i * x_step);
 
         if (px >= graph_x + graph_w - 1)
+        {
           px = graph_x + graph_w - 2;
+        }
 
         if (i > 0)
         {

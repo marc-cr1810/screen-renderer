@@ -1,28 +1,92 @@
 #include "simple_markup.hpp"
+#include <algorithm>
 #include <fstream>
+#include <iostream>
 #include <sstream>
 #include <stack>
-#include <iostream>
-#include <algorithm>
 
 namespace screen_renderer
 {
 
-auto Element::get_attribute(const std::string &key, const std::string &default_value) const -> std::string
+// --- element_t Implementation ---
+
+auto element_t::get_name() const -> const std::string &
 {
-  auto it = attributes.find(key);
-  if (it != attributes.end())
+  return m_name;
+}
+
+auto element_t::set_name(const std::string &name) -> void
+{
+  m_name = name;
+}
+
+auto element_t::get_attributes() const -> const std::map<std::string, std::string> &
+{
+  return m_attributes;
+}
+
+auto element_t::add_attribute(const std::string &key, const std::string &value) -> void
+{
+  m_attributes[key] = value;
+}
+
+auto element_t::get_text_content() const -> const std::string &
+{
+  return m_text_content;
+}
+
+auto element_t::set_text_content(const std::string &text) -> void
+{
+  m_text_content = text;
+}
+
+auto element_t::get_children() const -> const std::vector<std::shared_ptr<element_t>> &
+{
+  return m_children;
+}
+
+auto element_t::add_child(std::shared_ptr<element_t> child) -> void
+{
+  m_children.push_back(child);
+}
+
+auto element_t::get_start_line() const -> int
+{
+  return m_start_line;
+}
+
+auto element_t::set_start_line(int line) -> void
+{
+  m_start_line = line;
+}
+
+auto element_t::get_end_line() const -> int
+{
+  return m_end_line;
+}
+
+auto element_t::set_end_line(int line) -> void
+{
+  m_end_line = line;
+}
+
+auto element_t::get_attribute(const std::string &key, const std::string &default_value) const -> std::string
+{
+  auto it = m_attributes.find(key);
+  if (it != m_attributes.end())
   {
     return it->second;
   }
   return default_value;
 }
 
-auto Element::get_int_attribute(const std::string &key, int default_value) const -> int
+auto element_t::get_int_attribute(const std::string &key, int default_value) const -> int
 {
   auto val = get_attribute(key);
   if (val.empty())
+  {
     return default_value;
+  }
   try
   {
     return std::stoi(val);
@@ -33,11 +97,13 @@ auto Element::get_int_attribute(const std::string &key, int default_value) const
   }
 }
 
-auto Element::get_float_attribute(const std::string &key, float default_value) const -> float
+auto element_t::get_float_attribute(const std::string &key, float default_value) const -> float
 {
   auto val = get_attribute(key);
   if (val.empty())
+  {
     return default_value;
+  }
   try
   {
     return std::stof(val);
@@ -48,11 +114,13 @@ auto Element::get_float_attribute(const std::string &key, float default_value) c
   }
 }
 
-auto Element::get_bool_attribute(const std::string &key, bool default_value) const -> bool
+auto element_t::get_bool_attribute(const std::string &key, bool default_value) const -> bool
 {
   auto val = get_attribute(key);
   if (val.empty())
+  {
     return default_value;
+  }
   return val == "true" || val == "1" || val == "yes";
 }
 
@@ -67,7 +135,8 @@ static auto trim(std::string &s) -> void
 static auto parse_attributes(const std::string &attr_str) -> std::map<std::string, std::string>
 {
   std::map<std::string, std::string> attributes;
-  std::string key, value;
+  std::string key;
+  std::string value;
   bool in_value = false;
 
   size_t i = 0;
@@ -78,7 +147,9 @@ static auto parse_attributes(const std::string &attr_str) -> std::map<std::strin
       // Find key
       size_t eq_pos = attr_str.find('=', i);
       if (eq_pos == std::string::npos)
+      {
         break;
+      }
 
       key = attr_str.substr(i, eq_pos - i);
       trim(key);
@@ -86,7 +157,9 @@ static auto parse_attributes(const std::string &attr_str) -> std::map<std::strin
       // Find value start quote
       size_t quote_start = attr_str.find('"', eq_pos + 1);
       if (quote_start == std::string::npos)
+      {
         break;
+      }
 
       i = quote_start + 1;
       in_value = true;
@@ -96,7 +169,9 @@ static auto parse_attributes(const std::string &attr_str) -> std::map<std::strin
       // Find value end quote
       size_t quote_end = attr_str.find('"', i);
       if (quote_end == std::string::npos)
+      {
         break; // Error
+      }
 
       value = attr_str.substr(i, quote_end - i);
       attributes[key] = value;
@@ -115,7 +190,9 @@ static auto count_newlines(const std::string &str, size_t start, size_t end) -> 
   for (size_t i = start; i < end && i < str.length(); ++i)
   {
     if (str[i] == '\n')
+    {
       count++;
+    }
   }
   return count;
 }
@@ -124,24 +201,27 @@ static auto count_newlines(const std::string &str, size_t start, size_t end) -> 
 static auto get_column(const std::string &str, size_t pos) -> int
 {
   if (pos >= str.length())
+  {
     pos = str.length();
+  }
   size_t last_nl = str.rfind('\n', pos == 0 ? 0 : pos - 1);
   if (last_nl == std::string::npos)
+  {
     return static_cast<int>(pos) + 1;
+  }
   return static_cast<int>(pos - last_nl);
 }
 
-auto SimpleMarkupParser::parse(const std::string &xml_content) -> std::shared_ptr<Element>
+auto simple_markup_parser_t::parse(const std::string &xml_content) -> std::shared_ptr<element_t>
 {
-  std::vector<ParseError> errors;
+  std::vector<parse_error_t> errors;
   return parse(xml_content, errors);
 }
 
-auto SimpleMarkupParser::parse(const std::string &xml_content, std::vector<ParseError> &out_errors) -> std::shared_ptr<Element>
+auto simple_markup_parser_t::parse(const std::string &xml_content, std::vector<parse_error_t> &out_errors) -> std::shared_ptr<element_t>
 {
-  std::stack<std::shared_ptr<Element>> element_stack;
-  std::stack<std::string> tag_stack; // To track expected closing tags
-  std::shared_ptr<Element> root = nullptr;
+  std::stack<std::shared_ptr<element_t>> element_stack;
+  std::shared_ptr<element_t> root = nullptr;
 
   size_t pos = 0;
   int current_line = 1;
@@ -150,7 +230,9 @@ auto SimpleMarkupParser::parse(const std::string &xml_content, std::vector<Parse
   {
     size_t lt_pos = xml_content.find('<', pos);
     if (lt_pos == std::string::npos)
+    {
       break;
+    }
 
     // Update line count
     current_line += count_newlines(xml_content, pos, lt_pos);
@@ -164,7 +246,8 @@ auto SimpleMarkupParser::parse(const std::string &xml_content, std::vector<Parse
       trim(trimmed);
       if (!trimmed.empty())
       {
-        element_stack.top()->text_content += text;
+        std::string current_text = element_stack.top()->get_text_content();
+        element_stack.top()->set_text_content(current_text + text);
       }
     }
 
@@ -188,15 +271,14 @@ auto SimpleMarkupParser::parse(const std::string &xml_content, std::vector<Parse
         std::string tag_name = tag_content.substr(1);
         trim(tag_name);
 
-        if (element_stack.top()->name == tag_name)
+        if (element_stack.top()->get_name() == tag_name)
         {
-          element_stack.top()->end_line = current_line;
+          element_stack.top()->set_end_line(current_line);
           element_stack.pop();
         }
         else
         {
-          out_errors.push_back({current_line, get_column(xml_content, lt_pos), "Mismatched closing tag: expected </" + element_stack.top()->name + "> but found </" + tag_name + ">"});
-          // Try to recover? For now just ignore or pop if matches parent?
+          out_errors.push_back({current_line, get_column(xml_content, lt_pos), "Mismatched closing tag: expected </" + element_stack.top()->get_name() + "> but found </" + tag_name + ">"});
           // Simple recovery: ignore this closing tag
         }
       }
@@ -238,13 +320,17 @@ auto SimpleMarkupParser::parse(const std::string &xml_content, std::vector<Parse
       continue;
     }
 
-    auto new_element = std::make_shared<Element>();
-    new_element->name = name;
-    new_element->start_line = current_line; // Set start line
+    auto new_element = std::make_shared<element_t>();
+    new_element->set_name(name);
+    new_element->set_start_line(current_line); // Set start line
 
     if (!attr_str.empty())
     {
-      new_element->attributes = parse_attributes(attr_str);
+      auto attrs = parse_attributes(attr_str);
+      for (const auto &pair : attrs)
+      {
+        new_element->add_attribute(pair.first, pair.second);
+      }
     }
 
     if (root == nullptr)
@@ -253,7 +339,7 @@ auto SimpleMarkupParser::parse(const std::string &xml_content, std::vector<Parse
     }
     else if (!element_stack.empty())
     {
-      element_stack.top()->children.push_back(new_element);
+      element_stack.top()->add_child(new_element);
     }
 
     if (!self_closing)
@@ -262,7 +348,7 @@ auto SimpleMarkupParser::parse(const std::string &xml_content, std::vector<Parse
     }
     else
     {
-      new_element->end_line = current_line; // Self-closing ends on same line (or we should track multi-line tags)
+      new_element->set_end_line(current_line);
     }
 
     pos = gt_pos + 1;
@@ -270,17 +356,19 @@ auto SimpleMarkupParser::parse(const std::string &xml_content, std::vector<Parse
 
   if (!element_stack.empty())
   {
-    out_errors.push_back({current_line, static_cast<int>(xml_content.length()), "Unclosed tag: <" + element_stack.top()->name + ">"});
+    out_errors.push_back({current_line, static_cast<int>(xml_content.length()), "Unclosed tag: <" + element_stack.top()->get_name() + ">"});
   }
 
   return root;
 }
 
-auto SimpleMarkupParser::parse_file(const std::string &filename) -> std::shared_ptr<Element>
+auto simple_markup_parser_t::parse_file(const std::string &filename) -> std::shared_ptr<element_t>
 {
   std::ifstream t(filename);
   if (!t.is_open())
+  {
     return nullptr;
+  }
 
   std::stringstream buffer;
   buffer << t.rdbuf();

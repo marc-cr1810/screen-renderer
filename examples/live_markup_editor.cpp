@@ -1,17 +1,15 @@
+#include "markup_renderer.hpp"
 #include "screen.hpp"
 #include "screen_renderer.hpp"
-#include "markup_renderer.hpp"
+#include "TextEditor.h"
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
 #include <iostream>
-#include <vector>
 #include <string>
-#include "TextEditor.h"
-
-using namespace screen_renderer;
+#include <vector>
 
 using namespace screen_renderer;
 
@@ -29,42 +27,46 @@ const char *initial_layout = R"(<screen>
 </screen>)";
 
 // Suggestion Database
-struct TagInfo
+struct tag_info_t
 {
   std::string description;
   std::vector<std::string> attributes;
 };
 
-std::map<std::string, TagInfo> tag_db = {{"screen", {"Root element", {}}},
-                                         {"rect", {"Draws a rectangle", {"x", "y", "w", "h", "fill"}}},
-                                         {"line", {"Draws a line", {"x1", "y1", "x2", "y2"}}},
-                                         {"circle", {"Draws a circle", {"cx", "cy", "r", "fill"}}},
-                                         {"text", {"Draws text", {"x", "y", "text", "id", "scale"}}}};
+std::map<std::string, tag_info_t> tag_db = {{"screen", {"Root element", {}}},
+                                            {"rect", {"Draws a rectangle", {"x", "y", "w", "h", "fill"}}},
+                                            {"line", {"Draws a line", {"x1", "y1", "x2", "y2"}}},
+                                            {"circle", {"Draws a circle", {"cx", "cy", "r", "fill"}}},
+                                            {"text", {"Draws text", {"x", "y", "text", "id", "scale"}}}};
 
-struct SuggestionContext
+struct suggestion_context_t
 {
-  enum Type
+  enum type_e
   {
     None,
     Tag,
     Attribute
   };
-  Type type = None;
+  type_e type = None;
   std::string tag_name;
   std::string partial_input;
 };
 
-auto get_suggestion_context(const std::string &line, int column) -> SuggestionContext
+auto get_suggestion_context(const std::string &line, int column) -> suggestion_context_t
 {
   if (column < 0 || column > (int)line.length())
+  {
     return {};
+  }
 
   // Look backwards for '<'
   int start_tag = -1;
   for (int i = column - 1; i >= 0; --i)
   {
     if (line[i] == '>')
+    {
       return {}; // Closed tag
+    }
     if (line[i] == '<')
     {
       start_tag = i;
@@ -73,7 +75,9 @@ auto get_suggestion_context(const std::string &line, int column) -> SuggestionCo
   }
 
   if (start_tag == -1)
+  {
     return {};
+  }
 
   std::string content = line.substr(start_tag + 1, column - (start_tag + 1));
 
@@ -82,7 +86,7 @@ auto get_suggestion_context(const std::string &line, int column) -> SuggestionCo
   if (first_space == std::string::npos)
   {
     // We are typing the tag name
-    return {SuggestionContext::Tag, "", content};
+    return {suggestion_context_t::Tag, "", content};
   }
   else
   {
@@ -93,14 +97,16 @@ auto get_suggestion_context(const std::string &line, int column) -> SuggestionCo
     size_t last_space = content.find_last_of(' ');
     std::string partial_attr = content.substr(last_space + 1);
 
-    return {SuggestionContext::Attribute, tag_name, partial_attr};
+    return {suggestion_context_t::Attribute, tag_name, partial_attr};
   }
 }
 
 auto main() -> int
 {
   if (!glfwInit())
+  {
     return -1;
+  }
   // ... (existing window setup)
 
   glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -118,7 +124,9 @@ auto main() -> int
   glfwSwapInterval(1);
 
   if (glewInit() != GLEW_OK)
+  {
     return -1;
+  }
 
   // ImGui Setup
   IMGUI_CHECKVERSION();
@@ -132,7 +140,7 @@ auto main() -> int
 
   screen_t screen(128, 64);
   screen_renderer_t renderer(0.0f, 0.0f, 0.0f, 0.0f, 0.5f, 1.0f); // Default Blue
-  MarkupRenderer markup_renderer;
+  markup_renderer_t markup_renderer;
 
   // Setup Text Editor
   TextEditor editor;
@@ -185,13 +193,13 @@ auto main() -> int
       std::string current_text = editor.GetText();
       if (current_text != last_text)
       {
-        std::vector<ParseError> errors;
+        std::vector<parse_error_t> errors;
         markup_renderer.load_layout_from_string(current_text, errors);
 
         TextEditor::ErrorMarkers markers;
         for (const auto &err : errors)
         {
-          markers[err.line] = err.message;
+          markers[err.m_line] = err.m_message;
         }
         editor.SetErrorMarkers(markers);
 
@@ -209,7 +217,7 @@ auto main() -> int
       std::string line = editor.GetCurrentLineText();
       auto context = get_suggestion_context(line, cursor.mColumn);
 
-      if (context.type == SuggestionContext::Tag)
+      if (context.type == suggestion_context_t::Tag)
       {
         ImGui::Text("Suggesting Tags for '<%s':", context.partial_input.c_str());
         ImGui::Separator();
@@ -228,7 +236,7 @@ auto main() -> int
           }
         }
       }
-      else if (context.type == SuggestionContext::Attribute)
+      else if (context.type == suggestion_context_t::Attribute)
       {
         ImGui::Text("Attributes for <%s> (matching '%s'):", context.tag_name.c_str(), context.partial_input.c_str());
         ImGui::Separator();
@@ -308,9 +316,9 @@ auto main() -> int
         int screen_y = (int)((mouse_pos.y - image_min.y) / scale_y);
 
         auto clicked_element = markup_renderer.get_element_at_pos(screen_x, screen_y);
-        if (clicked_element && clicked_element->start_line > 0)
+        if (clicked_element && clicked_element->get_start_line() > 0)
         {
-          editor.SetCursorPosition({clicked_element->start_line - 1, 0});
+          editor.SetCursorPosition({clicked_element->get_start_line() - 1, 0});
           // Optional: Highlight selection
           // editor.SetSelection({clicked_element->start_line - 1, 0}, {clicked_element->end_line - 1, 1000});
         }
@@ -324,14 +332,15 @@ auto main() -> int
       {
         int x = selected_element->get_int_attribute("x", 0);
         int y = selected_element->get_int_attribute("y", 0);
-        int w = 0, h = 0;
+        int w = 0;
+        int h = 0;
 
-        if (selected_element->name == "rect")
+        if (selected_element->get_name() == "rect")
         {
           w = selected_element->get_int_attribute("w", 0);
           h = selected_element->get_int_attribute("h", 0);
         }
-        else if (selected_element->name == "circle")
+        else if (selected_element->get_name() == "circle")
         {
           int cx = selected_element->get_int_attribute("cx", 0);
           int cy = selected_element->get_int_attribute("cy", 0);
@@ -341,7 +350,7 @@ auto main() -> int
           w = r * 2;
           h = r * 2;
         }
-        else if (selected_element->name == "line")
+        else if (selected_element->get_name() == "line")
         {
           int x1 = selected_element->get_int_attribute("x1", 0);
           int y1 = selected_element->get_int_attribute("y1", 0);
@@ -352,9 +361,9 @@ auto main() -> int
           w = std::abs(x2 - x1);
           h = std::abs(y2 - y1);
         }
-        else if (selected_element->name == "text")
+        else if (selected_element->get_name() == "text")
         {
-          w = selected_element->text_content.length() * 6 * selected_element->get_int_attribute("scale", 1);
+          w = selected_element->get_text_content().length() * 6 * selected_element->get_int_attribute("scale", 1);
           h = 8 * selected_element->get_int_attribute("scale", 1);
         }
 
@@ -382,7 +391,7 @@ auto main() -> int
 
       if (selected_element)
       {
-        ImGui::Text("Type: %s", selected_element->name.c_str());
+        ImGui::Text("Type: %s", selected_element->get_name().c_str());
         ImGui::Separator();
 
         std::vector<std::string> known_int_attrs = {"x", "y", "w", "h", "x1", "y1", "x2", "y2", "cx", "cy", "r", "scale"};
@@ -392,11 +401,11 @@ auto main() -> int
         bool changed = false;
 
         // Copy attributes to a temp map to iterate safely while modifying
-        std::map<std::string, std::string> current_attrs = selected_element->attributes;
+        std::map<std::string, std::string> current_attrs = selected_element->get_attributes();
 
-        if (tag_db.count(selected_element->name))
+        if (tag_db.count(selected_element->get_name()))
         {
-          for (const auto &attr : tag_db[selected_element->name].attributes)
+          for (const auto &attr : tag_db[selected_element->get_name()].attributes)
           {
             std::string val = selected_element->get_attribute(attr);
 
@@ -415,7 +424,7 @@ auto main() -> int
               }
               if (ImGui::DragInt(attr.c_str(), &v))
               {
-                selected_element->attributes[attr] = std::to_string(v);
+                selected_element->add_attribute(attr, std::to_string(v));
                 changed = true;
               }
             }
@@ -424,7 +433,7 @@ auto main() -> int
               bool v = (val == "true");
               if (ImGui::Checkbox(attr.c_str(), &v))
               {
-                selected_element->attributes[attr] = v ? "true" : "false";
+                selected_element->add_attribute(attr, v ? "true" : "false");
                 changed = true;
               }
             }
@@ -435,7 +444,7 @@ auto main() -> int
               buffer[sizeof(buffer) - 1] = 0;
               if (ImGui::InputText(attr.c_str(), buffer, sizeof(buffer)))
               {
-                selected_element->attributes[attr] = buffer;
+                selected_element->add_attribute(attr, buffer);
                 changed = true;
               }
             }
@@ -449,7 +458,7 @@ auto main() -> int
           strncpy(buffer, pair.second.c_str(), sizeof(buffer));
           if (ImGui::InputText(pair.first.c_str(), buffer, sizeof(buffer)))
           {
-            selected_element->attributes[pair.first] = buffer;
+            selected_element->add_attribute(pair.first, buffer);
             changed = true;
           }
         }
@@ -457,10 +466,10 @@ auto main() -> int
         if (changed)
         {
           // Reconstruct the XML line
-          std::string line = editor.GetTextLines()[selected_element->start_line - 1];
+          std::string line = editor.GetTextLines()[selected_element->get_start_line() - 1];
 
-          std::string new_tag = "<" + selected_element->name;
-          for (const auto &pair : selected_element->attributes)
+          std::string new_tag = "<" + selected_element->get_name();
+          for (const auto &pair : selected_element->get_attributes())
           {
             new_tag += " " + pair.first + "=\"" + pair.second + "\"";
           }
@@ -480,7 +489,7 @@ auto main() -> int
             new_tag = line.substr(0, indent) + new_tag;
           }
 
-          if (selected_element->name == "text" && selected_element->start_line == selected_element->end_line)
+          if (selected_element->get_name() == "text" && selected_element->get_start_line() == selected_element->get_end_line())
           {
             auto pos = line.find('>');
             if (pos != std::string::npos)
@@ -490,7 +499,7 @@ auto main() -> int
           }
 
           auto lines = editor.GetTextLines();
-          lines[selected_element->start_line - 1] = new_tag;
+          lines[selected_element->get_start_line() - 1] = new_tag;
           editor.SetTextLines(lines);
         }
       }
