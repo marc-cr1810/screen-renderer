@@ -19,9 +19,17 @@ public:
 
   // Load layout from XML string
   auto load_layout_from_string(const std::string &xml_content) -> bool;
+  // Load layout with error reporting
+  auto load_layout_from_string(const std::string &xml_content, std::vector<ParseError> &out_errors) -> bool;
 
   // Render current layout to screen
   auto render(screen_t &screen) -> void;
+
+  // Find element by source line
+  auto get_element_at_line(int line) -> std::shared_ptr<Element>;
+
+  // Find element by screen position
+  auto get_element_at_pos(int x, int y) -> std::shared_ptr<Element>;
 
   // Update text content of an element by ID
   auto set_text(const std::string &id, const std::string &text) -> void;

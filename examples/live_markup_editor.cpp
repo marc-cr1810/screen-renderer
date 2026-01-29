@@ -13,6 +13,11 @@
 
 using namespace screen_renderer;
 
+using namespace screen_renderer;
+
+const int APP_WIDTH = 128;
+const int APP_HEIGHT = 64;
+
 // Initial Layout
 const char *initial_layout = R"(<screen>
     <rect x="0" y="0" w="128" h="64" fill="false" />
@@ -180,7 +185,16 @@ auto main() -> int
       std::string current_text = editor.GetText();
       if (current_text != last_text)
       {
-        markup_renderer.load_layout_from_string(current_text);
+        std::vector<ParseError> errors;
+        markup_renderer.load_layout_from_string(current_text, errors);
+
+        TextEditor::ErrorMarkers markers;
+        for (const auto &err : errors)
+        {
+          markers[err.line] = err.message;
+        }
+        editor.SetErrorMarkers(markers);
+
         last_text = current_text;
       }
 
@@ -260,19 +274,230 @@ auto main() -> int
       screen.clear();
       markup_renderer.render(screen);
 
-      // Show texture
-      GLuint tex = renderer.get_texture_id();
-      renderer.render(screen); // Update texture
+      // Draw the screen buffer
+      // Maintain aspect ratio
+      float aspect = (float)APP_WIDTH / (float)APP_HEIGHT;
+      float win_width = ImGui::GetContentRegionAvail().x;
+      float win_height = ImGui::GetContentRegionAvail().y;
 
-      // Get available size
-      ImVec2 size = ImGui::GetContentRegionAvail();
-      float aspect = 128.0f / 64.0f;
-      if (size.x / size.y > aspect)
-        size.x = size.y * aspect;
+      float draw_width = win_width;
+      float draw_height = win_width / aspect;
+
+      if (draw_height > win_height)
+      {
+        draw_height = win_height;
+        draw_width = draw_height * aspect;
+      }
+
+      ImVec2 start_pos = ImGui::GetCursorScreenPos();
+      // Update the texture before drawing
+      renderer.render(screen);
+      GLuint screen_texture = renderer.get_texture_id();
+      ImGui::Image((void *)(intptr_t)screen_texture, ImVec2(draw_width, draw_height), ImVec2(0, 1), ImVec2(1, 0));
+
+      // Handle Screen Picking
+      if (ImGui::IsItemClicked(0))
+      {
+        ImVec2 mouse_pos = ImGui::GetMousePos();
+        ImVec2 image_min = ImGui::GetItemRectMin();
+
+        float scale_x = draw_width / (float)APP_WIDTH;
+        float scale_y = draw_height / (float)APP_HEIGHT;
+
+        int screen_x = (int)((mouse_pos.x - image_min.x) / scale_x);
+        int screen_y = (int)((mouse_pos.y - image_min.y) / scale_y);
+
+        auto clicked_element = markup_renderer.get_element_at_pos(screen_x, screen_y);
+        if (clicked_element && clicked_element->start_line > 0)
+        {
+          editor.SetCursorPosition({clicked_element->start_line - 1, 0});
+          // Optional: Highlight selection
+          // editor.SetSelection({clicked_element->start_line - 1, 0}, {clicked_element->end_line - 1, 1000});
+        }
+      }
+
+      // Draw Highlight Overlay
+      int cursor_line = editor.GetCursorPosition().mLine + 1;
+      auto selected_element = markup_renderer.get_element_at_line(cursor_line);
+
+      if (selected_element)
+      {
+        int x = selected_element->get_int_attribute("x", 0);
+        int y = selected_element->get_int_attribute("y", 0);
+        int w = 0, h = 0;
+
+        if (selected_element->name == "rect")
+        {
+          w = selected_element->get_int_attribute("w", 0);
+          h = selected_element->get_int_attribute("h", 0);
+        }
+        else if (selected_element->name == "circle")
+        {
+          int cx = selected_element->get_int_attribute("cx", 0);
+          int cy = selected_element->get_int_attribute("cy", 0);
+          int r = selected_element->get_int_attribute("r", 0);
+          x = cx - r;
+          y = cy - r;
+          w = r * 2;
+          h = r * 2;
+        }
+        else if (selected_element->name == "line")
+        {
+          int x1 = selected_element->get_int_attribute("x1", 0);
+          int y1 = selected_element->get_int_attribute("y1", 0);
+          int x2 = selected_element->get_int_attribute("x2", 0);
+          int y2 = selected_element->get_int_attribute("y2", 0);
+          x = std::min(x1, x2);
+          y = std::min(y1, y2);
+          w = std::abs(x2 - x1);
+          h = std::abs(y2 - y1);
+        }
+        else if (selected_element->name == "text")
+        {
+          w = selected_element->text_content.length() * 6 * selected_element->get_int_attribute("scale", 1);
+          h = 8 * selected_element->get_int_attribute("scale", 1);
+        }
+
+        if (w > 0 && h > 0)
+        {
+          float scale_x = draw_width / (float)APP_WIDTH;
+          float scale_y = draw_height / (float)APP_HEIGHT;
+
+          ImVec2 p_min = ImVec2(start_pos.x + x * scale_x, start_pos.y + y * scale_y);
+          ImVec2 p_max = ImVec2(p_min.x + w * scale_x, p_min.y + h * scale_y);
+
+          ImGui::GetWindowDrawList()->AddRect(p_min, p_max, IM_COL32(255, 255, 0, 255), 0.0f, 0, 2.0f);
+        }
+      }
+
+      ImGui::End();
+    }
+
+    // Property Inspector
+    {
+      ImGui::Begin("Inspector");
+
+      int cursor_line = editor.GetCursorPosition().mLine + 1;
+      auto selected_element = markup_renderer.get_element_at_line(cursor_line);
+
+      if (selected_element)
+      {
+        ImGui::Text("Type: %s", selected_element->name.c_str());
+        ImGui::Separator();
+
+        std::vector<std::string> known_int_attrs = {"x", "y", "w", "h", "x1", "y1", "x2", "y2", "cx", "cy", "r", "scale"};
+        std::vector<std::string> known_bool_attrs = {"fill"};
+        std::vector<std::string> known_string_attrs = {"text", "id"};
+
+        bool changed = false;
+
+        // Copy attributes to a temp map to iterate safely while modifying
+        std::map<std::string, std::string> current_attrs = selected_element->attributes;
+
+        if (tag_db.count(selected_element->name))
+        {
+          for (const auto &attr : tag_db[selected_element->name].attributes)
+          {
+            std::string val = selected_element->get_attribute(attr);
+
+            bool is_int = std::find(known_int_attrs.begin(), known_int_attrs.end(), attr) != known_int_attrs.end();
+            bool is_bool = std::find(known_bool_attrs.begin(), known_bool_attrs.end(), attr) != known_bool_attrs.end();
+
+            if (is_int)
+            {
+              int v = 0;
+              try
+              {
+                v = std::stoi(val);
+              }
+              catch (...)
+              {
+              }
+              if (ImGui::DragInt(attr.c_str(), &v))
+              {
+                selected_element->attributes[attr] = std::to_string(v);
+                changed = true;
+              }
+            }
+            else if (is_bool)
+            {
+              bool v = (val == "true");
+              if (ImGui::Checkbox(attr.c_str(), &v))
+              {
+                selected_element->attributes[attr] = v ? "true" : "false";
+                changed = true;
+              }
+            }
+            else
+            {
+              char buffer[256];
+              strncpy(buffer, val.c_str(), sizeof(buffer));
+              buffer[sizeof(buffer) - 1] = 0;
+              if (ImGui::InputText(attr.c_str(), buffer, sizeof(buffer)))
+              {
+                selected_element->attributes[attr] = buffer;
+                changed = true;
+              }
+            }
+            current_attrs.erase(attr);
+          }
+        }
+
+        for (auto &pair : current_attrs)
+        {
+          char buffer[256];
+          strncpy(buffer, pair.second.c_str(), sizeof(buffer));
+          if (ImGui::InputText(pair.first.c_str(), buffer, sizeof(buffer)))
+          {
+            selected_element->attributes[pair.first] = buffer;
+            changed = true;
+          }
+        }
+
+        if (changed)
+        {
+          // Reconstruct the XML line
+          std::string line = editor.GetTextLines()[selected_element->start_line - 1];
+
+          std::string new_tag = "<" + selected_element->name;
+          for (const auto &pair : selected_element->attributes)
+          {
+            new_tag += " " + pair.first + "=\"" + pair.second + "\"";
+          }
+
+          if (line.find("/>") != std::string::npos)
+          {
+            new_tag += " />";
+          }
+          else
+          {
+            new_tag += ">";
+          }
+
+          size_t indent = line.find_first_not_of(" \t");
+          if (indent != std::string::npos)
+          {
+            new_tag = line.substr(0, indent) + new_tag;
+          }
+
+          if (selected_element->name == "text" && selected_element->start_line == selected_element->end_line)
+          {
+            auto pos = line.find('>');
+            if (pos != std::string::npos)
+            {
+              new_tag += line.substr(pos + 1);
+            }
+          }
+
+          auto lines = editor.GetTextLines();
+          lines[selected_element->start_line - 1] = new_tag;
+          editor.SetTextLines(lines);
+        }
+      }
       else
-        size.y = size.x / aspect;
-
-      ImGui::Image((ImTextureID)(uint64_t)tex, size, ImVec2(0, 1), ImVec2(1, 0));
+      {
+        ImGui::TextDisabled("Select an element to edit properties.");
+      }
 
       ImGui::End();
     }

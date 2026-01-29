@@ -26,10 +26,15 @@ auto MarkupRenderer::load_layout(const std::string &filename) -> bool
 
 auto MarkupRenderer::load_layout_from_string(const std::string &xml_content) -> bool
 {
-  m_root = SimpleMarkupParser::parse(xml_content);
+  std::vector<ParseError> errors;
+  return load_layout_from_string(xml_content, errors);
+}
+
+auto MarkupRenderer::load_layout_from_string(const std::string &xml_content, std::vector<ParseError> &out_errors) -> bool
+{
+  m_root = SimpleMarkupParser::parse(xml_content, out_errors);
   if (!m_root)
   {
-    // Don't log error here as it might be incomplete while typing
     return false;
   }
 
@@ -38,6 +43,108 @@ auto MarkupRenderer::load_layout_from_string(const std::string &xml_content) -> 
   m_text_map.clear();
   build_id_map(m_root);
   return true;
+}
+
+// Helper to find element recursively
+auto find_element_by_line(std::shared_ptr<Element> element, int line) -> std::shared_ptr<Element>
+{
+  if (!element)
+    return nullptr;
+
+  // Check if line is within this element's range
+  // Note: we want the most specific (deepest) child that contains the line.
+  // But children might not cover the entire range of the parent (e.g. text content).
+
+  if (line >= element->start_line && line <= element->end_line)
+  {
+    // Check children first
+    for (auto &child : element->children)
+    {
+      auto found = find_element_by_line(child, line);
+      if (found)
+        return found;
+    }
+    return element;
+  }
+  return nullptr;
+}
+
+auto MarkupRenderer::get_element_at_line(int line) -> std::shared_ptr<Element>
+{
+  return find_element_by_line(m_root, line);
+}
+
+// Helper to check if point is inside element
+static auto is_point_in_element(std::shared_ptr<Element> element, int px, int py) -> bool
+{
+  int x = element->get_int_attribute("x", 0);
+  int y = element->get_int_attribute("y", 0);
+
+  if (element->name == "rect")
+  {
+    int w = element->get_int_attribute("w", 0);
+    int h = element->get_int_attribute("h", 0);
+    return px >= x && px < x + w && py >= y && py < y + h;
+  }
+  else if (element->name == "circle")
+  {
+    int cx = element->get_int_attribute("cx", 0);
+    int cy = element->get_int_attribute("cy", 0);
+    int r = element->get_int_attribute("r", 0);
+    int dx = px - cx;
+    int dy = py - cy;
+    return (dx * dx + dy * dy) <= (r * r);
+  }
+  else if (element->name == "line")
+  {
+    // Simple bounding box for line? Or distance?
+    // Let's use bounding box for now
+    int x1 = element->get_int_attribute("x1", 0);
+    int y1 = element->get_int_attribute("y1", 0);
+    int x2 = element->get_int_attribute("x2", 0);
+    int y2 = element->get_int_attribute("y2", 0);
+    int lx = std::min(x1, x2);
+    int ly = std::min(y1, y2);
+    int lw = std::abs(x2 - x1);
+    int lh = std::abs(y2 - y1);
+    // Add some tolerance
+    return px >= lx - 2 && px <= lx + lw + 2 && py >= ly - 2 && py <= ly + lh + 2;
+  }
+  else if (element->name == "text")
+  {
+    int w = element->text_content.length() * 6 * element->get_int_attribute("scale", 1);
+    int h = 8 * element->get_int_attribute("scale", 1);
+    return px >= x && px < x + w && py >= y && py < y + h;
+  }
+  return false;
+}
+
+// Helper to find element by position recursively
+auto find_element_by_pos(std::shared_ptr<Element> element, int x, int y) -> std::shared_ptr<Element>
+{
+  if (!element)
+    return nullptr;
+
+  // Check children first (reverse order to hit top-most)
+  for (auto it = element->children.rbegin(); it != element->children.rend(); ++it)
+  {
+    auto found = find_element_by_pos(*it, x, y);
+    if (found)
+      return found;
+  }
+
+  // Check self
+  if (is_point_in_element(element, x, y))
+  {
+    return element;
+  }
+
+  return nullptr;
+}
+
+auto MarkupRenderer::get_element_at_pos(int x, int y) -> std::shared_ptr<Element>
+{
+  return find_element_by_pos(m_root, x, y);
 }
 
 auto MarkupRenderer::build_id_map(std::shared_ptr<Element> element) -> void
