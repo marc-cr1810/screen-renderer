@@ -194,7 +194,7 @@ auto main() -> int
   screen_renderer_t renderer(0.0f, 0.0f, 0.0f, 0.0f, 0.5f, 1.0f); // Default Blue
   markup_renderer_t markup_renderer;
   markup_renderer.register_bitmap("icon_drone", bitmap_t::create_smiley());
-  markup_renderer.register_bitmap("icon_battery", bitmap_t::create_heart());
+  markup_renderer.register_bitmap("icon_battery", bitmap_t::create_battery());
   markup_renderer.register_bitmap("icon_arrow_up", bitmap_t::create_arrow_up());
 
   // Setup Text Editor
@@ -267,6 +267,11 @@ auto main() -> int
           editor.SetText(xml);
           std::vector<parse_error_t> errors;
           markup_renderer.load_layout_from_string(xml, errors);
+
+          // Set up mock data for examples
+          markup_renderer.set_data("battery", "85%");
+          markup_renderer.set_data("drone_count", "12");
+          markup_renderer.set_data("status_ok", "true");
         };
 
         // BASIC EXAMPLES
@@ -289,14 +294,13 @@ auto main() -> int
         }
         if (ImGui::MenuItem("4. Medical Monitor"))
         {
-          load_example("<screen>\n  <rect x=\"0\" y=\"0\" w=\"100%\" h=\"10\" fill=\"true\" />\n  <text x=\"4\" y=\"2\" text=\"PATIENT MONITOR\" invert=\"true\" />\n  <text x=\"5\" y=\"20\" text=\"HR: 72 BPM\" />\n  <text x=\"70\" "
-                       "y=\"20\" text=\"SPO2: "
-                       "98%\" />\n  <text x=\"5\" y=\"30\" text=\"TEMP: 36.5C\" />\n  <text x=\"70\" y=\"30\" text=\"BP: 120/80\" />\n</screen>");
+          load_example("<screen>\n  <rect x=\"0\" y=\"0\" w=\"128\" h=\"10\" fill=\"true\" />\n  <text x=\"20\" y=\"2\" text=\"PATIENT MONITOR\" invert=\"true\" />\n  <text x=\"5\" y=\"16\" text=\"HR: 72 BPM\" />\n  <text x=\"70\" "
+                       "y=\"16\" text=\"SPO2: 98%\" />\n  <text x=\"5\" y=\"26\" text=\"TEMP: 36.5C\" />\n  <text x=\"70\" y=\"26\" text=\"BP: 120/80\" />\n  <text x=\"35\" y=\"40\" text=\"STATUS: STABLE\" />\n</screen>");
         }
         if (ImGui::MenuItem("5. Music Player"))
         {
           load_example("<screen>\n  <text x=\"30\" y=\"8\" text=\"NOW PLAYING\" scale=\"1\" />\n  <text x=\"20\" y=\"24\" text=\"Neon Dreams\" scale=\"1\" "
-                       "/>\n  <progress x=\"10\" y=\"36\" w=\"108\" h=\"4\" value=\"45\" max=\"100\" />\n  <text x=\"48\" y=\"44\" text=\"01:32 / 03:25\" />\n  <circle cx=\"34\" cy=\"54\" r=\"4\" fill=\"true\" />\n  <circle cx=\"64\" "
+                       "/>\n  <progress x=\"10\" y=\"36\" w=\"108\" h=\"4\" value=\"45\" max=\"100\" />\n  <text x=\"32\" y=\"42\" text=\"01:32 / 03:25\" />\n  <circle cx=\"34\" cy=\"54\" r=\"4\" fill=\"true\" />\n  <circle cx=\"64\" "
                        "cy=\"54\" r=\"6\" fill=\"true\" />\n  <circle cx=\"94\" cy=\"54\" r=\"4\" fill=\"true\" />\n</screen>");
         }
         if (ImGui::MenuItem("6. Retro Game HUD"))
@@ -304,14 +308,15 @@ auto main() -> int
           load_example("<screen>\n  <rect x=\"0\" y=\"0\" w=\"100%\" h=\"12\" fill=\"true\" />\n  <text x=\"4\" y=\"2\" text=\"SCORE:9999\" scale=\"1\" invert=\"true\" />\n  <text x=\"80\" y=\"2\" text=\"LIVES:3\" "
                        "scale=\"1\" invert=\"true\" />\n  <group x=\"5\" y=\"20\">\n    <bitmap src=\"icon_drone\" x=\"0\" y=\"0\" />\n    <bitmap src=\"icon_drone\" x=\"15\" y=\"0\" />\n    <bitmap src=\"icon_drone\" x=\"30\" y=\"0\" "
                        "/>\n  </group>\n  "
-                       "<text x=\"45\" y=\"50\" text=\"GET READY!\" pulse=\"2\" scale=\"2\" />\n</screen>");
+                       "<text x=\"20\" y=\"50\" text=\"GET READY!\" pulse=\"2\" scale=\"2\" />\n</screen>");
         }
         if (ImGui::MenuItem("7. Industrial Control"))
         {
-          load_example("<screen>\n  <text x=\"4\" y=\"2\" text=\"REACTOR STATUS\" />\n  <line x1=\"0\" y1=\"11\" x2=\"128\" y2=\"11\" />\n  <text x=\"4\" y=\"15\" text=\"TEMP:\" />\n  <progress x=\"40\" y=\"15\" w=\"80\" h=\"6\" "
-                       "value=\"76\" max=\"100\" />\n  <text x=\"4\" y=\"25\" text=\"PRESSURE:\" />\n  <progress x=\"40\" "
-                       "y=\"25\" w=\"80\" h=\"6\" value=\"82\" max=\"100\" />\n  <text x=\"4\" y=\"35\" text=\"COOLANT:\" />\n  <progress x=\"40\" y=\"35\" w=\"80\" h=\"6\" value=\"65\" max=\"100\" />\n  <if condition=\"{status_ok} == "
-                       "true\">\n    <text x=\"40\" y=\"50\" text=\"NOMINAL\" pulse=\"1\" />\n  </if>\n</screen>");
+          load_example("<screen>\n  <rect x=\"0\" y=\"0\" w=\"128\" h=\"12\" fill=\"true\" />\n  <text x=\"15\" y=\"2\" text=\"REACTOR STATUS\" invert=\"true\" />\n  <text x=\"4\" y=\"16\" text=\"TEMP:\" />\n  <progress x=\"50\" y=\"16\" "
+                       "w=\"70\" h=\"6\" "
+                       "value=\"76\" max=\"100\" />\n  <text x=\"4\" y=\"26\" text=\"PRESSURE:\" />\n  <progress x=\"50\" "
+                       "y=\"26\" w=\"70\" h=\"6\" value=\"82\" max=\"100\" />\n  <text x=\"4\" y=\"36\" text=\"COOLANT:\" />\n  <progress x=\"50\" y=\"36\" w=\"70\" h=\"6\" value=\"65\" max=\"100\" />\n  <text x=\"40\" y=\"50\" "
+                       "text=\"NOMINAL\" />\n</screen>");
         }
 
         // ADVANCED FEATURES
@@ -323,15 +328,18 @@ auto main() -> int
         }
         if (ImGui::MenuItem("9. Data Dashboard"))
         {
-          load_example("<screen>\n  <rect x=\"0\" y=\"0\" w=\"100%\" h=\"10\" fill=\"true\" />\n  <text x=\"4\" y=\"2\" text=\"ANALYTICS\" invert=\"true\" />\n  <group x=\"4\" y=\"14\">\n    <text x=\"0\" y=\"0\" text=\"CPU: 42%\" />\n    "
-                       "<progress "
-                       "x=\"45\" y=\"0\" w=\"75\" h=\"6\" value=\"42\" max=\"100\" />\n  </group>\n  <group x=\"4\" y=\"26\">\n    <text x=\"0\" y=\"0\" text=\"RAM: 68%\" />\n    <progress x=\"45\" y=\"0\" w=\"75\" h=\"6\" value=\"68\" "
-                       "max=\"100\" />\n  </group>\n  <group x=\"4\" y=\"38\">\n    <text x=\"0\" y=\"0\" text=\"DISK: 55%\" />\n    <progress x=\"45\" y=\"0\" w=\"75\" h=\"6\" value=\"55\" max=\"100\" />\n  </group>\n</screen>");
+          load_example(
+              "<screen>\n  <rect x=\"0\" y=\"0\" w=\"128\" h=\"10\" fill=\"true\" />\n  <text x=\"40\" y=\"2\" text=\"ANALYTICS\" invert=\"true\" />\n  <text x=\"4\" y=\"16\" text=\"CPU:\" />\n  <text x=\"35\" y=\"16\" text=\"42%\" />\n  "
+              "<progress "
+              "x=\"55\" y=\"16\" w=\"68\" h=\"6\" value=\"42\" max=\"100\" />\n  <text x=\"4\" y=\"28\" text=\"RAM:\" />\n  <text x=\"35\" y=\"28\" text=\"68%\" />\n  <progress x=\"55\" y=\"28\" w=\"68\" h=\"6\" value=\"68\" "
+              "max=\"100\" />\n  <text x=\"4\" y=\"40\" text=\"DISK:\" />\n  <text x=\"35\" y=\"40\" text=\"55%\" />\n  <progress x=\"55\" y=\"40\" w=\"68\" h=\"6\" value=\"55\" max=\"100\" />\n</screen>");
         }
         if (ImGui::MenuItem("10. Drone HUD (Advanced)"))
         {
-          load_example("<screen width=\"128\" height=\"64\">\n  <rect x=\"0\" y=\"0\" w=\"100%\" h=\"12\" fill=\"true\" />\n  <text x=\"4\" y=\"2\" text=\"DRONE-HUD v2.0\" />\n  <group x=\"90\" y=\"2\">\n    <bitmap src=\"icon_battery\" "
-                       "x=\"0\" y=\"0\" />\n    <text x=\"15\" y=\"0\" text=\"{battery}\" />\n  </group>\n  <group x=\"0\" y=\"15\">\n    <circle cx=\"64\" cy=\"20\" r=\"10\" fill=\"false\" />\n    <line x1=\"54\" y1=\"20\" x2=\"74\" "
+          load_example("<screen width=\"128\" height=\"64\">\n  <rect x=\"0\" y=\"0\" w=\"100%\" h=\"12\" fill=\"true\" />\n  <text x=\"4\" y=\"2\" text=\"DRONE-HUD v2.0\" invert=\"true\" />\n  <group x=\"90\" y=\"2\">\n    <bitmap "
+                       "src=\"icon_battery\" "
+                       "x=\"0\" y=\"0\" />\n    <text x=\"15\" y=\"0\" text=\"{battery}\" invert=\"true\" />\n  </group>\n  <group x=\"0\" y=\"15\">\n    <circle cx=\"64\" cy=\"20\" r=\"10\" fill=\"false\" />\n    <line x1=\"54\" "
+                       "y1=\"20\" x2=\"74\" "
                        "y2=\"20\" />\n    <line x1=\"64\" y1=\"10\" x2=\"64\" y2=\"30\" />\n    <if condition=\"{drone_count} > 5\">\n      <rect x=\"34\" y=\"10\" w=\"60\" h=\"20\" fill=\"false\" />\n      <text x=\"40\" y=\"15\" "
                        "text=\"MULTI-TARGET\" pulse=\"2\" />\n    </if>\n  </group>\n  <text x=\"4\" y=\"45\" text=\"ALT: 152m\" />\n  <text x=\"70\" y=\"45\" text=\"SPD: 45kmh\" />\n</screen>");
         }

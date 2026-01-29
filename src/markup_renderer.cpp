@@ -719,10 +719,12 @@ auto markup_renderer_t::render_element(screen_t &screen, const std::shared_ptr<e
     int x = parent_x + get_int_attr("x", 0, parent_w);
     int y = parent_y + get_int_attr("y", 0, parent_h);
     std::string src = get_attr("src");
+    bool invert = get_bool_attr("invert");
 
     if (m_bitmaps.count(src))
     {
-      screen.draw_bitmap(m_bitmaps.at(src), x, y);
+      bool pixel_value = !invert;
+      screen.draw_bitmap(m_bitmaps.at(src), x, y, pixel_value);
     }
   }
   else if (element->get_name() == "progress")
