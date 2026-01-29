@@ -10,6 +10,7 @@ class bitmap_t
 {
 public:
   // Functions
+  bitmap_t();
   bitmap_t(size_t width, size_t height);
   bitmap_t(size_t width, size_t height, const std::vector<bool> &data);
   auto get_width() const -> size_t;

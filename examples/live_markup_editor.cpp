@@ -17,13 +17,27 @@ const int APP_WIDTH = 128;
 const int APP_HEIGHT = 64;
 
 // Initial Layout
+// Initial Layout
 const char *initial_layout = R"(<screen>
+    <style id="header" scale="1" />
+    <style id="big" scale="2" />
+    
     <rect x="0" y="0" w="128" h="64" fill="false" />
     <line x1="0" y1="10" x2="127" y2="10" />
-    <text x="5" y="2" text="LIVE EDITOR" />
+    <text style="header" x="5" y="2" text="LIVE EDITOR" />
+    <bitmap src="icon_battery" x="110" y="1" />
     
-    <text id="counter" x="10" y="20" text="0" scale="2" />
-    <circle cx="100" cy="30" r="10" fill="false" />
+    <group x="10" y="20">
+        <text style="header" x="0" y="0" text="Counter:" />
+        <text id="counter" style="big" x="0" y="10" text="0" />
+    </group>
+
+    <group x="80" y="25">
+       <circle cx="20" cy="20" r="10" fill="false" />
+       <bitmap src="icon_drone" x="12" y="12" />
+    </group>
+    
+    <text id="help" x="5" y="55" text="Try clicking elements!" visible="true" />
 </screen>)";
 
 // Suggestion Database
@@ -34,10 +48,13 @@ struct tag_info_t
 };
 
 std::map<std::string, tag_info_t> tag_db = {{"screen", {"Root element", {}}},
-                                            {"rect", {"Draws a rectangle", {"x", "y", "w", "h", "fill"}}},
-                                            {"line", {"Draws a line", {"x1", "y1", "x2", "y2"}}},
-                                            {"circle", {"Draws a circle", {"cx", "cy", "r", "fill"}}},
-                                            {"text", {"Draws text", {"x", "y", "text", "id", "scale"}}}};
+                                            {"rect", {"Draws a rectangle", {"x", "y", "w", "h", "fill", "visible", "style"}}},
+                                            {"line", {"Draws a line", {"x1", "y1", "x2", "y2", "visible", "style"}}},
+                                            {"circle", {"Draws a circle", {"cx", "cy", "r", "fill", "visible", "style"}}},
+                                            {"text", {"Draws text", {"x", "y", "text", "id", "scale", "visible", "style"}}},
+                                            {"group", {"Groups elements", {"x", "y", "visible", "style"}}},
+                                            {"bitmap", {"Draws a bitmap", {"x", "y", "src", "visible", "style"}}},
+                                            {"style", {"Defines a style", {"id", "scale", "fill"}}}};
 
 struct suggestion_context_t
 {
@@ -141,6 +158,9 @@ auto main() -> int
   screen_t screen(128, 64);
   screen_renderer_t renderer(0.0f, 0.0f, 0.0f, 0.0f, 0.5f, 1.0f); // Default Blue
   markup_renderer_t markup_renderer;
+  markup_renderer.register_bitmap("icon_drone", bitmap_t::create_smiley());
+  markup_renderer.register_bitmap("icon_battery", bitmap_t::create_heart());
+  markup_renderer.register_bitmap("icon_arrow_up", bitmap_t::create_arrow_up());
 
   // Setup Text Editor
   TextEditor editor;

@@ -4,6 +4,12 @@
 namespace screen_renderer
 {
 
+// --- bitmap_t Implementation ---
+
+bitmap_t::bitmap_t() : m_width(0), m_height(0)
+{
+}
+
 bitmap_t::bitmap_t(size_t width, size_t height) : m_width(width), m_height(height), m_pixels(width * height, false)
 {
 }

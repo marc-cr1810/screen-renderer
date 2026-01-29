@@ -1,5 +1,6 @@
 #pragma once
 
+#include "bitmap.hpp"
 #include "font.hpp"
 #include "screen.hpp"
 #include "simple_markup.hpp"
@@ -33,13 +34,15 @@ public:
 
   // Update text content of an element by ID
   auto set_text(const std::string &id, const std::string &text) -> void;
-
   // Update visibility of an element by ID
   auto set_visible(const std::string &id, bool visible) -> void;
 
+  // Register a bitmap for use in markup
+  auto register_bitmap(const std::string &id, const bitmap_t &bitmap) -> void;
+
 private:
-  // Recursive render function
-  auto render_element(screen_t &screen, const std::shared_ptr<element_t> &element) -> void;
+  // Recursive render function with parent offset
+  auto render_element(screen_t &screen, const std::shared_ptr<element_t> &element, int parent_x = 0, int parent_y = 0) -> void;
 
   // Helpers
   auto find_element_by_id(const std::string &id) -> std::shared_ptr<element_t>;
@@ -49,6 +52,10 @@ private:
   std::map<std::string, std::shared_ptr<element_t>> m_id_map;
   std::map<std::string, bool> m_visibility_map;  // Overrides element visibility
   std::map<std::string, std::string> m_text_map; // Overrides element text
+
+  // Advanced features storage
+  std::map<std::string, bitmap_t> m_bitmaps;
+  std::map<std::string, std::map<std::string, std::string>> m_styles;
 
   font_t m_font;
 };

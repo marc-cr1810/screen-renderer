@@ -1,3 +1,4 @@
+#include "bitmap.hpp"
 #include "markup_renderer.hpp"
 #include "screen.hpp"
 #include "screen_renderer.hpp"
@@ -52,6 +53,12 @@ auto main() -> int
 
   // Load Markup
   markup_renderer_t markup_renderer;
+  // Register bitmaps
+  markup_renderer.register_bitmap("icon_drone", bitmap_t::create_smiley());  // Using smiley as drone icon for now
+  markup_renderer.register_bitmap("icon_battery", bitmap_t::create_heart()); // Heart as battery
+  markup_renderer.register_bitmap("icon_arrow_up", bitmap_t::create_arrow_up());
+
+  // Load Markup (after registering bitmaps)
   if (!markup_renderer.load_layout("examples/assets/sensor_layout.xml"))
   {
     std::cerr << "Failed to load layout file." << std::endl;
