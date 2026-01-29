@@ -37,7 +37,7 @@ const char *initial_layout = R"(<screen>
         <bitmap src="icon_drone" x="30" y="20" />
     </group>
 
-    <line x1="0" y1="54" x2="127" y2="54" />
+    <line x1="0" y1="54" x2="100%" y2="54" />
     <text id="status" x="5" y="56" text="SYSTEM READY" visible="true" />
 </screen>)";
 
@@ -49,13 +49,18 @@ struct tag_info_t
 };
 
 std::map<std::string, tag_info_t> tag_db = {{"screen", {"Root element", {}}},
-                                            {"rect", {"Draws a rectangle", {"x", "y", "w", "h", "fill", "visible", "style"}}},
-                                            {"line", {"Draws a line", {"x1", "y1", "x2", "y2", "visible", "style"}}},
-                                            {"circle", {"Draws a circle", {"cx", "cy", "r", "fill", "visible", "style"}}},
-                                            {"text", {"Draws text", {"x", "y", "text", "id", "scale", "visible", "style"}}},
-                                            {"group", {"Groups elements", {"x", "y", "visible", "style"}}},
-                                            {"bitmap", {"Draws a bitmap", {"x", "y", "src", "visible", "style"}}},
-                                            {"style", {"Defines a style", {"id", "scale", "fill"}}}};
+                                            {"rect", {"Draws a rectangle", {"x", "y", "w", "h", "fill", "visible", "style", "pulse", "id"}}},
+                                            {"line", {"Draws a line", {"x1", "y1", "x2", "y2", "visible", "style", "pulse", "id"}}},
+                                            {"circle", {"Draws a circle", {"cx", "cy", "r", "fill", "visible", "style", "pulse", "id"}}},
+                                            {"text", {"Draws text", {"x", "y", "text", "id", "scale", "visible", "style", "pulse"}}},
+                                            {"group", {"Groups elements", {"x", "y", "visible", "style", "id"}}},
+                                            {"hbox", {"Horizontal layout", {"x", "y", "w", "h", "spacing", "visible", "style", "id"}}},
+                                            {"vbox", {"Vertical layout", {"x", "y", "w", "h", "spacing", "visible", "style", "id"}}},
+                                            {"if", {"Conditional rendering", {"condition"}}},
+                                            {"template", {"Defines a template", {"id"}}},
+                                            {"use", {"Uses a template", {"template", "x", "y"}}},
+                                            {"bitmap", {"Draws a bitmap", {"x", "y", "src", "visible", "style", "id"}}},
+                                            {"style", {"Defines a style", {"id", "scale", "fill", "pulse"}}}};
 
 struct suggestion_context_t
 {
@@ -301,7 +306,7 @@ auto main() -> int
 
       // Draw
       screen.clear();
-      markup_renderer.render(screen);
+      markup_renderer.render(screen, ImGui::GetIO().DeltaTime);
 
       // Draw the screen buffer
       // Maintain aspect ratio
@@ -403,6 +408,45 @@ auto main() -> int
       ImGui::End();
     }
 
+    // Mock Data Panel
+    {
+      ImGui::Begin("Mock Data");
+      static std::map<std::string, std::string> mock_vars = {{"battery", "80%"}, {"drone_count", "12"}, {"status_ok", "true"}, {"status_warning", "false"}};
+      for (auto &pair : mock_vars)
+      {
+        char val[64];
+        strncpy(val, pair.second.c_str(), 64);
+        if (ImGui::InputText(pair.first.c_str(), val, 64))
+        {
+          pair.second = val;
+          markup_renderer.set_data(pair.first, val);
+        }
+      }
+      // Initialize if first frame
+      static bool first = true;
+      if (first)
+      {
+        for (auto &p : mock_vars)
+          markup_renderer.set_data(p.first, p.second);
+        first = false;
+      }
+      ImGui::End();
+    }
+
+    // Asset Browser
+    {
+      ImGui::Begin("Assets");
+      std::vector<std::string> assets = {"icon_drone", "icon_battery", "icon_arrow_up"};
+      for (const auto &name : assets)
+      {
+        if (ImGui::Selectable(name.c_str()))
+        {
+          editor.InsertText("<bitmap src=\"" + name + "\" x=\"0\" y=\"0\" />");
+        }
+      }
+      ImGui::End();
+    }
+
     // Property Inspector
     {
       ImGui::Begin("Inspector");
@@ -415,13 +459,10 @@ auto main() -> int
         ImGui::Text("Type: %s", selected_element->get_name().c_str());
         ImGui::Separator();
 
-        std::vector<std::string> known_int_attrs = {"x", "y", "w", "h", "x1", "y1", "x2", "y2", "cx", "cy", "r", "scale"};
-        std::vector<std::string> known_bool_attrs = {"fill"};
-        std::vector<std::string> known_string_attrs = {"text", "id"};
+        std::vector<std::string> known_int_attrs = {"x", "y", "w", "h", "x1", "y1", "x2", "y2", "cx", "cy", "r", "scale", "spacing"};
+        std::vector<std::string> known_bool_attrs = {"fill", "visible"};
 
         bool changed = false;
-
-        // Copy attributes to a temp map to iterate safely while modifying
         std::map<std::string, std::string> current_attrs = selected_element->get_attributes();
 
         if (tag_db.count(selected_element->get_name()))
@@ -429,7 +470,6 @@ auto main() -> int
           for (const auto &attr : tag_db[selected_element->get_name()].attributes)
           {
             std::string val = selected_element->get_attribute(attr);
-
             bool is_int = std::find(known_int_attrs.begin(), known_int_attrs.end(), attr) != known_int_attrs.end();
             bool is_bool = std::find(known_bool_attrs.begin(), known_bool_attrs.end(), attr) != known_bool_attrs.end();
 
@@ -451,7 +491,7 @@ auto main() -> int
             }
             else if (is_bool)
             {
-              bool v = (val == "true");
+              bool v = (val == "true" || val == "1");
               if (ImGui::Checkbox(attr.c_str(), &v))
               {
                 selected_element->add_attribute(attr, v ? "true" : "false");
@@ -461,9 +501,8 @@ auto main() -> int
             else
             {
               char buffer[256];
-              strncpy(buffer, val.c_str(), sizeof(buffer));
-              buffer[sizeof(buffer) - 1] = 0;
-              if (ImGui::InputText(attr.c_str(), buffer, sizeof(buffer)))
+              strncpy(buffer, val.c_str(), 256);
+              if (ImGui::InputText(attr.c_str(), buffer, 256))
               {
                 selected_element->add_attribute(attr, buffer);
                 changed = true;
@@ -476,8 +515,8 @@ auto main() -> int
         for (auto &pair : current_attrs)
         {
           char buffer[256];
-          strncpy(buffer, pair.second.c_str(), sizeof(buffer));
-          if (ImGui::InputText(pair.first.c_str(), buffer, sizeof(buffer)))
+          strncpy(buffer, pair.second.c_str(), 256);
+          if (ImGui::InputText(pair.first.c_str(), buffer, 256))
           {
             selected_element->add_attribute(pair.first, buffer);
             changed = true;
@@ -486,40 +525,21 @@ auto main() -> int
 
         if (changed)
         {
-          // Reconstruct the XML line
-          std::string line = editor.GetTextLines()[selected_element->get_start_line() - 1];
-
+          auto lines = editor.GetTextLines();
+          std::string line = lines[selected_element->get_start_line() - 1];
           std::string new_tag = "<" + selected_element->get_name();
           for (const auto &pair : selected_element->get_attributes())
-          {
             new_tag += " " + pair.first + "=\"" + pair.second + "\"";
-          }
 
           if (line.find("/>") != std::string::npos)
-          {
             new_tag += " />";
-          }
           else
-          {
             new_tag += ">";
-          }
 
           size_t indent = line.find_first_not_of(" \t");
           if (indent != std::string::npos)
-          {
             new_tag = line.substr(0, indent) + new_tag;
-          }
 
-          if (selected_element->get_name() == "text" && selected_element->get_start_line() == selected_element->get_end_line())
-          {
-            auto pos = line.find('>');
-            if (pos != std::string::npos)
-            {
-              new_tag += line.substr(pos + 1);
-            }
-          }
-
-          auto lines = editor.GetTextLines();
           lines[selected_element->get_start_line() - 1] = new_tag;
           editor.SetTextLines(lines);
         }
@@ -528,7 +548,6 @@ auto main() -> int
       {
         ImGui::TextDisabled("Select an element to edit properties.");
       }
-
       ImGui::End();
     }
 

@@ -1,6 +1,7 @@
 #include "markup_renderer.hpp"
 #include <iostream>
 #include <algorithm>
+#include <cmath>
 
 namespace screen_renderer
 {
@@ -170,6 +171,14 @@ auto markup_renderer_t::build_id_map(std::shared_ptr<element_t> element) -> void
     m_id_map[id] = element;
   }
 
+  if (element->get_name() == "template")
+  {
+    if (!id.empty())
+    {
+      m_templates[id] = element;
+    }
+  }
+
   for (auto &child : element->get_children())
   {
     build_id_map(child);
@@ -184,6 +193,26 @@ auto markup_renderer_t::set_text(const std::string &id, const std::string &text)
 auto markup_renderer_t::set_visible(const std::string &id, bool visible) -> void
 {
   m_visibility_map[id] = visible;
+}
+
+auto markup_renderer_t::set_data(const std::string &key, const std::string &value) -> void
+{
+  m_data[key] = value;
+}
+
+auto markup_renderer_t::get_data(const std::string &key, const std::string &default_value) const -> std::string
+{
+  auto it = m_data.find(key);
+  if (it != m_data.end())
+  {
+    return it->second;
+  }
+  return default_value;
+}
+
+auto markup_renderer_t::clear_data() -> void
+{
+  m_data.clear();
 }
 
 auto markup_renderer_t::find_element_by_id(const std::string &id) -> std::shared_ptr<element_t>
@@ -335,37 +364,41 @@ static void draw_circle(screen_t &screen, int xc, int yc, int r, bool fill)
   }
 }
 
-auto markup_renderer_t::render(screen_t &screen) -> void
+auto markup_renderer_t::render(screen_t &screen, float dt) -> void
 {
   if (!m_root)
   {
     return;
   }
-  m_styles.clear(); // Clear styles on re-render to allow updates if parsed on fly (or just once)
-  // Actually, better to parse styles in a pre-pass?
-  // For now, let's collect styles during render if they are at root.
-  // Or simply, when we encounter a <style>, we register it.
+  m_total_time += dt;
+  m_styles.clear();
+  m_templates.clear(); // We rebuild them on render if they are in the tree
 
-  render_element(screen, m_root, 0, 0);
+  render_element(screen, m_root, 0, 0, screen.get_width(), screen.get_height());
 }
 
-auto markup_renderer_t::render_element(screen_t &screen, const std::shared_ptr<element_t> &element, int parent_x, int parent_y) -> void
+auto markup_renderer_t::render_element(screen_t &screen, const std::shared_ptr<element_t> &element, int parent_x, int parent_y, int parent_w, int parent_h) -> void
 {
   if (!element)
   {
     return;
   }
 
-  // 1. Styles Definition
+  // 1. Templates & Styles Definition
   if (element->get_name() == "style")
   {
     std::string id = element->get_attribute("id");
     if (!id.empty())
     {
       m_styles[id] = element->get_attributes();
-      // Remove "id" from the style map itself to avoid self-reference or confusion? Not needed.
     }
-    return; // Do not render style tags
+    return;
+  }
+
+  if (element->get_name() == "template")
+  {
+    // Templates are handled in pre-pass or during ID map build, but let's ensure they aren't rendered
+    return;
   }
 
   // 2. Check Visibility
@@ -388,41 +421,75 @@ auto markup_renderer_t::render_element(screen_t &screen, const std::shared_ptr<e
   }
 
   // 3. Apply Style (if any)
-  // We need to merge style attributes with element attributes.
-  // Since we shouldn't modify the AST during render, we use a helper to get attribute values.
-  // Helper lambda to get attribute respecting style
-  auto get_attr = [&](const std::string &key, const std::string &def = "") -> std::string
+  // Helper to get attribute values, supporting data binding and styles
+  auto get_raw_attr = [&](const std::string &key, const std::string &def = "") -> std::string
   {
-    // Check local attribute first
-    std::string local = element->get_attribute(key);
-    if (!local.empty())
-      return local;
-
-    // Check style
-    std::string style_id = element->get_attribute("style");
-    if (!style_id.empty() && m_styles.count(style_id))
+    std::string val = element->get_attribute(key);
+    if (val.empty())
     {
-      if (m_styles[style_id].count(key))
+      std::string style_id = element->get_attribute("style");
+      if (!style_id.empty() && m_styles.count(style_id))
       {
-        return m_styles[style_id].at(key);
+        if (m_styles[style_id].count(key))
+        {
+          val = m_styles[style_id].at(key);
+        }
       }
     }
-    return def;
+    return val.empty() ? def : val;
   };
 
-  auto get_int_attr = [&](const std::string &key, int def = 0) -> int
+  auto resolve_data = [&](std::string val) -> std::string
   {
-    std::string val = get_attr(key);
+    size_t start_pos = 0;
+    while ((start_pos = val.find('{', start_pos)) != std::string::npos)
+    {
+      size_t end_pos = val.find('}', start_pos);
+      if (end_pos == std::string::npos)
+        break;
+
+      std::string key = val.substr(start_pos + 1, end_pos - start_pos - 1);
+      std::string replacement = get_data(key, "{" + key + "}");
+      val.replace(start_pos, end_pos - start_pos + 1, replacement);
+      start_pos += replacement.length();
+    }
+    return val;
+  };
+
+  auto get_attr = [&](const std::string &key, const std::string &def = "") -> std::string { return resolve_data(get_raw_attr(key, def)); };
+
+  auto parse_unit = [&](const std::string &val, int total) -> int
+  {
     if (val.empty())
-      return def;
+      return 0;
+    if (val.back() == '%')
+    {
+      try
+      {
+        float p = std::stof(val.substr(0, val.size() - 1)) / 100.0f;
+        return (int)(p * total);
+      }
+      catch (...)
+      {
+        return 0;
+      }
+    }
     try
     {
       return std::stoi(val);
     }
     catch (...)
     {
-      return def;
+      return 0;
     }
+  };
+
+  auto get_int_attr = [&](const std::string &key, int def = 0, int total = 0) -> int
+  {
+    std::string val = get_attr(key);
+    if (val.empty())
+      return def;
+    return parse_unit(val, total);
   };
 
   auto get_bool_attr = [&](const std::string &key, bool def = false) -> bool
@@ -433,26 +500,114 @@ auto markup_renderer_t::render_element(screen_t &screen, const std::shared_ptr<e
     return val == "true" || val == "1" || val == "yes";
   };
 
+  // Pulse/Animation check
+  std::string pulse_attr = get_attr("pulse");
+  if (!pulse_attr.empty())
+  {
+    try
+    {
+      float rate = std::stof(pulse_attr);
+      if (std::sin(m_total_time * rate * 6.28f) < 0.0f)
+        return;
+    }
+    catch (...)
+    {
+    }
+  }
+
   // 4. Render specific types
 
-  // Group
-  if (element->get_name() == "group")
+  // Conditional Rendering
+  if (element->get_name() == "if")
   {
-    int x = get_int_attr("x");
-    int y = get_int_attr("y");
+    std::string condition = get_attr("condition");
+    if (get_data(condition) == "true" || get_data(condition) == "1")
+    {
+      for (auto &child : element->get_children())
+      {
+        render_element(screen, child, parent_x, parent_y, parent_w, parent_h);
+      }
+    }
+    return;
+  }
 
-    // Render children with offset
+  // Template instantiation
+  if (element->get_name() == "use")
+  {
+    std::string template_id = get_attr("template");
+    if (m_templates.count(template_id))
+    {
+      auto tpl = m_templates[template_id];
+      // Save data, update with attributes from 'use', render, restore
+      auto old_data = m_data;
+      for (const auto &attr : element->get_attributes())
+      {
+        m_data[attr.first] = resolve_data(attr.second);
+      }
+
+      int ux = get_int_attr("x", 0, parent_w);
+      int uy = get_int_attr("y", 0, parent_h);
+
+      for (auto &child : tpl->get_children())
+      {
+        render_element(screen, child, parent_x + ux, parent_y + uy, parent_w, parent_h);
+      }
+      m_data = old_data;
+    }
+    return;
+  }
+
+  // Group / Layouts
+  if (element->get_name() == "group" || element->get_name() == "hbox" || element->get_name() == "vbox")
+  {
+    int x = get_int_attr("x", 0, parent_w);
+    int y = get_int_attr("y", 0, parent_h);
+    int w = get_int_attr("w", parent_w, parent_w);
+    int h = get_int_attr("h", parent_h, parent_h);
+    int spacing = get_int_attr("spacing", 0, (element->get_name() == "hbox" ? w : h));
+
+    bool is_hbox = element->get_name() == "hbox";
+    bool is_vbox = element->get_name() == "vbox";
+
+    int current_offset = 0;
     for (auto &child : element->get_children())
     {
-      render_element(screen, child, parent_x + x, parent_y + y);
+      if (is_hbox)
+      {
+        render_element(screen, child, parent_x + x + current_offset, parent_y + y, w, h);
+        // We need a way to know child's width to auto-layout.
+        // For now, let's assume a default width if not specified, or use some simple heuristic.
+        // Better: child might have its own 'w' attribute.
+        int child_w = child->get_int_attribute("w", 0);
+        if (child_w == 0 && child->get_name() == "text")
+        {
+          std::string content = resolve_data(child->get_attribute("text", child->get_text_content()));
+          child_w = content.length() * 6 * child->get_int_attribute("scale", 1);
+        }
+        current_offset += child_w + spacing;
+      }
+      else if (is_vbox)
+      {
+        render_element(screen, child, parent_x + x, parent_y + y + current_offset, w, h);
+        int child_h = child->get_int_attribute("h", 0);
+        if (child_h == 0 && child->get_name() == "text")
+        {
+          child_h = 8 * child->get_int_attribute("scale", 1);
+        }
+        current_offset += child_h + spacing;
+      }
+      else // Simple group
+      {
+        render_element(screen, child, parent_x + x, parent_y + y, w, h);
+      }
     }
     return;
   }
 
   if (element->get_name() == "text")
   {
-    int x = parent_x + get_int_attr("x");
-    int y = parent_y + get_int_attr("y");
+    int x = parent_x + get_int_attr("x", 0, parent_w);
+    int y = parent_y + get_int_attr("y", 0, parent_h);
     int scale = get_int_attr("scale", 1);
 
     std::string content = get_attr("text");
@@ -460,6 +615,7 @@ auto markup_renderer_t::render_element(screen_t &screen, const std::shared_ptr<e
     {
       content = element->get_text_content();
     }
+    content = resolve_data(content);
 
     // Override content if in map
     if (!id.empty())
@@ -482,10 +638,10 @@ auto markup_renderer_t::render_element(screen_t &screen, const std::shared_ptr<e
   }
   else if (element->get_name() == "rect")
   {
-    int x = parent_x + get_int_attr("x");
-    int y = parent_y + get_int_attr("y");
-    int w = get_int_attr("w");
-    int h = get_int_attr("h");
+    int x = parent_x + get_int_attr("x", 0, parent_w);
+    int y = parent_y + get_int_attr("y", 0, parent_h);
+    int w = get_int_attr("w", 0, parent_w);
+    int h = get_int_attr("h", 0, parent_h);
     bool fill = get_bool_attr("fill");
 
     if (fill)
@@ -502,25 +658,25 @@ auto markup_renderer_t::render_element(screen_t &screen, const std::shared_ptr<e
   }
   else if (element->get_name() == "line")
   {
-    int x1 = parent_x + get_int_attr("x1");
-    int y1 = parent_y + get_int_attr("y1");
-    int x2 = parent_x + get_int_attr("x2");
-    int y2 = parent_y + get_int_attr("y2");
+    int x1 = parent_x + get_int_attr("x1", 0, parent_w);
+    int y1 = parent_y + get_int_attr("y1", 0, parent_h);
+    int x2 = parent_x + get_int_attr("x2", 0, parent_w);
+    int y2 = parent_y + get_int_attr("y2", 0, parent_h);
     screen.draw_line(x1, y1, x2, y2, true);
   }
   else if (element->get_name() == "circle")
   {
-    int x = parent_x + get_int_attr("cx");
-    int y = parent_y + get_int_attr("cy");
-    int r = get_int_attr("r");
+    int x = parent_x + get_int_attr("cx", 0, parent_w);
+    int y = parent_y + get_int_attr("cy", 0, parent_h);
+    int r = get_int_attr("r", 0, std::min(parent_w, parent_h));
     bool fill = get_bool_attr("fill");
 
     draw_circle(screen, x, y, r, fill);
   }
   else if (element->get_name() == "bitmap")
   {
-    int x = parent_x + get_int_attr("x");
-    int y = parent_y + get_int_attr("y");
+    int x = parent_x + get_int_attr("x", 0, parent_w);
+    int y = parent_y + get_int_attr("y", 0, parent_h);
     std::string src = get_attr("src");
 
     if (m_bitmaps.count(src))
@@ -529,10 +685,12 @@ auto markup_renderer_t::render_element(screen_t &screen, const std::shared_ptr<e
     }
   }
 
-  // Render children (propagate offsets)
+  // Render children (propagate offsets/parents)
   for (auto &child : element->get_children())
   {
-    render_element(screen, child, parent_x, parent_y);
+    // Don't re-render if we already handled them in a layout container
+    // Actually, group/hbox/vbox return early, so this only hits elements that aren't those but have children.
+    render_element(screen, child, parent_x, parent_y, parent_w, parent_h);
   }
 }
 

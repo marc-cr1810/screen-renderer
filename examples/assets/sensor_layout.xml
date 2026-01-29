@@ -17,7 +17,7 @@
         <bitmap src="icon_battery" x="-14" y="0" />
         <text id="battery" x="0" y="0" text="100%" />
     </group>
-    <line x1="0" y1="9" x2="127" y2="9" />
+    <line x1="0" y1="9" x2="100%" y2="9" />
 
     <!-- Left Panel: Drone Count -->
     <group x="0" y="12">
@@ -41,7 +41,7 @@
     </group>
 
     <!-- Footer -->
-    <line x1="0" y1="54" x2="127" y2="54" />
+    <line x1="0" y1="54" x2="100%" y2="54" />
     <text id="coords" x="2" y="56" text="-33.8688,151.2093" />
     <text id="no_fix" x="100" y="56" text="NO FIX" visible="false" />
 </screen>

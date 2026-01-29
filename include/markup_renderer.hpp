@@ -24,7 +24,7 @@ public:
   auto load_layout_from_string(const std::string &xml_content, std::vector<parse_error_t> &out_errors) -> bool;
 
   // Render current layout to screen
-  auto render(screen_t &screen) -> void;
+  auto render(screen_t &screen, float dt = 0.0f) -> void;
 
   // Find element by source line
   auto get_element_at_line(int line) -> std::shared_ptr<element_t>;
@@ -37,12 +37,17 @@ public:
   // Update visibility of an element by ID
   auto set_visible(const std::string &id, bool visible) -> void;
 
+  // Data binding
+  auto set_data(const std::string &key, const std::string &value) -> void;
+  auto get_data(const std::string &key, const std::string &default_value = "") const -> std::string;
+  auto clear_data() -> void;
+
   // Register a bitmap for use in markup
   auto register_bitmap(const std::string &id, const bitmap_t &bitmap) -> void;
 
 private:
-  // Recursive render function with parent offset
-  auto render_element(screen_t &screen, const std::shared_ptr<element_t> &element, int parent_x = 0, int parent_y = 0) -> void;
+  // Recursive render function with parent offset and parent size (for percentages)
+  auto render_element(screen_t &screen, const std::shared_ptr<element_t> &element, int parent_x = 0, int parent_y = 0, int parent_w = 128, int parent_h = 64) -> void;
 
   // Helpers
   auto find_element_by_id(const std::string &id) -> std::shared_ptr<element_t>;
@@ -52,12 +57,15 @@ private:
   std::map<std::string, std::shared_ptr<element_t>> m_id_map;
   std::map<std::string, bool> m_visibility_map;  // Overrides element visibility
   std::map<std::string, std::string> m_text_map; // Overrides element text
+  std::map<std::string, std::string> m_data;     // Data binding variables
 
   // Advanced features storage
   std::map<std::string, bitmap_t> m_bitmaps;
   std::map<std::string, std::map<std::string, std::string>> m_styles;
+  std::map<std::string, std::shared_ptr<element_t>> m_templates;
 
   font_t m_font;
+  float m_total_time = 0.0f;
 };
 
 } // namespace screen_renderer

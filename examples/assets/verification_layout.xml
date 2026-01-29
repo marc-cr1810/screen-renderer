@@ -1,0 +1,34 @@
+<screen>
+    <style id="blink" pulse="2" />
+    <style id="header" scale="1" />
+    
+    <template id="stat_box">
+        <rect x="0" y="0" w="40" h="15" fill="false" />
+        <text x="2" y="2" text="{label}" scale="1" />
+        <text x="2" y="8" text="{value}" scale="1" />
+    </template>
+
+    <!-- Layout Testing -->
+    <vbox x="2" y="2" spacing="2">
+        <text style="header" text="ADVANCED PREVIEW" />
+        <hbox spacing="4">
+            <use template="stat_box" label="BAT" value="{battery}" />
+            <use template="stat_box" label="DRN" value="{drone_count}" />
+        </hbox>
+    </vbox>
+
+    <!-- Percentages & Conditions -->
+    <line x1="0" y1="50" x2="100%" y2="50" />
+    <hbox x="2" y="52" w="124" spacing="10">
+        <text text="STATUS:" />
+        <if condition="status_ok">
+            <text text="SYSTEM OK" />
+        </if>
+        <if condition="status_warning">
+            <text style="blink" text="WARNING!" />
+        </if>
+    </hbox>
+
+    <!-- Animation -->
+    <circle cx="110" cy="10" r="5" fill="true" pulse="1" />
+</screen>
