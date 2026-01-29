@@ -1,0 +1,274 @@
+#include "markup_renderer.hpp"
+#include <iostream>
+
+namespace screen_renderer
+{
+
+MarkupRenderer::MarkupRenderer()
+{
+}
+
+auto MarkupRenderer::load_layout(const std::string &filename) -> bool
+{
+  m_root = SimpleMarkupParser::parse_file(filename);
+  if (!m_root)
+  {
+    std::cerr << "Failed to parse markup file: " << filename << std::endl;
+    return false;
+  }
+
+  m_id_map.clear();
+  m_visibility_map.clear();
+  m_text_map.clear();
+  build_id_map(m_root);
+  return true;
+}
+
+auto MarkupRenderer::build_id_map(std::shared_ptr<Element> element) -> void
+{
+  if (!element)
+    return;
+
+  std::string id = element->get_attribute("id");
+  if (!id.empty())
+  {
+    m_id_map[id] = element;
+  }
+
+  for (auto &child : element->children)
+  {
+    build_id_map(child);
+  }
+}
+
+auto MarkupRenderer::set_text(const std::string &id, const std::string &text) -> void
+{
+  m_text_map[id] = text;
+}
+
+auto MarkupRenderer::set_visible(const std::string &id, bool visible) -> void
+{
+  m_visibility_map[id] = visible;
+}
+
+auto MarkupRenderer::find_element_by_id(const std::string &id) -> std::shared_ptr<Element>
+{
+  auto it = m_id_map.find(id);
+  if (it != m_id_map.end())
+  {
+    return it->second;
+  }
+  return nullptr;
+}
+
+// --- Drawing Helpers ---
+
+static void draw_filled_rect(screen_t &screen, int x, int y, int w, int h, bool color)
+{
+  for (int i = 0; i < w; ++i)
+  {
+    for (int j = 0; j < h; ++j)
+    {
+      screen.set_pixel(x + i, y + j, color);
+    }
+  }
+}
+
+// Draw a large 3x5 digit scaled up by scale factor (Reused from sensor_status_demo logic)
+static void draw_digit_scaled(screen_t &screen, int x, int y, int digit, int scale)
+{
+  static const bool digits[10][15] = {
+      {1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1}, // 0
+      {0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0}, // 1
+      {1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1}, // 2
+      {1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1}, // 3
+      {1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1}, // 4
+      {1, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1}, // 5
+      {1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1}, // 6
+      {1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1}, // 7
+      {1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1}, // 8
+      {1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1}, // 9
+  };
+
+  if (digit < 0 || digit > 9)
+    return;
+  const bool *d = digits[digit];
+  for (int r = 0; r < 5; ++r)
+  {
+    for (int c = 0; c < 3; ++c)
+    {
+      if (d[r * 3 + c])
+      {
+        draw_filled_rect(screen, x + c * scale, y + r * scale, scale, scale, true);
+      }
+    }
+  }
+}
+
+static void draw_text_big(screen_t &screen, int x, int y, const std::string &text, int scale)
+{
+  int cursor_x = x;
+  for (char c : text)
+  {
+    if (c >= '0' && c <= '9')
+    {
+      draw_digit_scaled(screen, cursor_x, y, c - '0', scale);
+      cursor_x += (3 * scale) + scale;
+    }
+    else
+    {
+      // Fallback for non-digits in "big" font - just skip or maybe standard text?
+      // For now let's assume big text is just numbers as per requirement
+      cursor_x += (3 * scale) + scale;
+    }
+  }
+}
+
+// Bresenham's Circle Algorithm
+static void draw_circle(screen_t &screen, int xc, int yc, int r, bool fill)
+{
+  int x = 0, y = r;
+  int d = 3 - 2 * r;
+
+  auto draw_circle_points = [&](int xc, int yc, int x, int y)
+  {
+    if (fill)
+    {
+      screen.draw_line(xc - x, yc + y, xc + x, yc + y, true);
+      screen.draw_line(xc - x, yc - y, xc + x, yc - y, true);
+      screen.draw_line(xc - y, yc + x, xc + y, yc + x, true);
+      screen.draw_line(xc - y, yc - x, xc + y, yc - x, true);
+    }
+    else
+    {
+      screen.set_pixel(xc + x, yc + y, true);
+      screen.set_pixel(xc - x, yc + y, true);
+      screen.set_pixel(xc + x, yc - y, true);
+      screen.set_pixel(xc - x, yc - y, true);
+      screen.set_pixel(xc + y, yc + x, true);
+      screen.set_pixel(xc - y, yc + x, true);
+      screen.set_pixel(xc + y, yc - x, true);
+      screen.set_pixel(xc - y, yc - x, true);
+    }
+  };
+
+  while (y >= x)
+  {
+    draw_circle_points(xc, yc, x, y);
+    x++;
+    if (d > 0)
+    {
+      y--;
+      d = d + 4 * (x - y) + 10;
+    }
+    else
+    {
+      d = d + 4 * x + 6;
+    }
+  }
+}
+
+auto MarkupRenderer::render(screen_t &screen) -> void
+{
+  if (!m_root)
+    return;
+  render_element(screen, m_root);
+}
+
+auto MarkupRenderer::render_element(screen_t &screen, const std::shared_ptr<Element> &element) -> void
+{
+  if (!element)
+    return;
+
+  // Check visibility
+  std::string id = element->get_attribute("id");
+  if (!id.empty())
+  {
+    auto it = m_visibility_map.find(id);
+    if (it != m_visibility_map.end() && !it->second)
+    {
+      // If explicit false in map, don't render this or children
+      return;
+    }
+  }
+
+  // Check attribute visibility (default true)
+  if (!element->get_bool_attribute("visible", true))
+  {
+    return;
+  }
+
+  // Render specific types
+  if (element->name == "text")
+  {
+    int x = element->get_int_attribute("x");
+    int y = element->get_int_attribute("y");
+    int scale = element->get_int_attribute("scale", 1);
+
+    std::string content = element->get_attribute("text");
+    if (content.empty())
+    {
+      content = element->text_content;
+    }
+
+    // Override content if in map
+    if (!id.empty())
+    {
+      auto it = m_text_map.find(id);
+      if (it != m_text_map.end())
+      {
+        content = it->second;
+      }
+    }
+
+    if (scale > 1)
+    {
+      draw_text_big(screen, x, y, content, scale);
+    }
+    else
+    {
+      screen.draw_text(m_font, content, x, y, 1);
+    }
+  }
+  else if (element->name == "rect")
+  {
+    int x = element->get_int_attribute("x");
+    int y = element->get_int_attribute("y");
+    int w = element->get_int_attribute("w");
+    int h = element->get_int_attribute("h");
+    bool fill = element->get_bool_attribute("fill", false);
+
+    if (fill)
+    {
+      draw_filled_rect(screen, x, y, w, h, true);
+    }
+    else
+    {
+      screen.draw_rect(x, y, w, h, true);
+    }
+  }
+  else if (element->name == "line")
+  {
+    int x1 = element->get_int_attribute("x1");
+    int y1 = element->get_int_attribute("y1");
+    int x2 = element->get_int_attribute("x2");
+    int y2 = element->get_int_attribute("y2");
+    screen.draw_line(x1, y1, x2, y2, true);
+  }
+  else if (element->name == "circle")
+  {
+    int x = element->get_int_attribute("cx");
+    int y = element->get_int_attribute("cy");
+    int r = element->get_int_attribute("r");
+    bool fill = element->get_bool_attribute("fill", false);
+    draw_circle(screen, x, y, r, fill);
+  }
+
+  // Render children
+  for (auto &child : element->children)
+  {
+    render_element(screen, child);
+  }
+}
+
+} // namespace screen_renderer
