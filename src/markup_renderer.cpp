@@ -205,12 +205,36 @@ auto markup_renderer_t::register_bitmap(const std::string &id, const bitmap_t &b
 
 static void draw_filled_rect(screen_t &screen, int x, int y, int w, int h, bool color)
 {
-  for (int i = 0; i < w; ++i)
+  for (int i = 0; i < h; ++i)
   {
-    for (int j = 0; j < h; ++j)
+    screen.draw_line(x, y + i, x + w - 1, y + i, color);
+  }
+}
+
+static void draw_text_scaled(screen_t &screen, const font_t &font, const std::string &text, int x, int y, int scale)
+{
+  int cursor_x = x;
+  for (char c : text)
+  {
+    auto bitmap = font.get_character(c);
+    // Draw scaled glyph
+    for (size_t row = 0; row < bitmap.get_height(); ++row)
     {
-      screen.set_pixel(x + i, y + j, color);
+      for (size_t col = 0; col < bitmap.get_width(); ++col)
+      {
+        if (bitmap.get_pixel(col, row))
+        {
+          for (int sy = 0; sy < scale; ++sy)
+          {
+            for (int sx = 0; sx < scale; ++sx)
+            {
+              screen.set_pixel(cursor_x + col * scale + sx, y + row * scale + sy, true);
+            }
+          }
+        }
+      }
     }
+    cursor_x += (bitmap.get_width() + 1) * scale;
   }
 }
 
@@ -449,9 +473,7 @@ auto markup_renderer_t::render_element(screen_t &screen, const std::shared_ptr<e
 
     if (scale > 1)
     {
-      // TODO: Implement scaled text in screen_t or manually scale here?
-      // simple manual scaling for now not implemented in screen_t
-      screen.draw_text(m_font, content, x, y, 1); // Ignore scale for now or add support
+      draw_text_scaled(screen, m_font, content, x, y, scale);
     }
     else
     {

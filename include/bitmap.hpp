@@ -28,6 +28,8 @@ public:
   static auto create_arrow_right() -> bitmap_t;
   static auto create_checkmark() -> bitmap_t;
   static auto create_cross() -> bitmap_t;
+  static auto create_drone() -> bitmap_t;
+  static auto create_battery() -> bitmap_t;
 
 private:
   // Variables

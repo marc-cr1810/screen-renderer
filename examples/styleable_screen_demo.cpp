@@ -54,8 +54,8 @@ auto main() -> int
   // Load Markup
   markup_renderer_t markup_renderer;
   // Register bitmaps
-  markup_renderer.register_bitmap("icon_drone", bitmap_t::create_smiley());  // Using smiley as drone icon for now
-  markup_renderer.register_bitmap("icon_battery", bitmap_t::create_heart()); // Heart as battery
+  markup_renderer.register_bitmap("icon_drone", bitmap_t::create_drone());
+  markup_renderer.register_bitmap("icon_battery", bitmap_t::create_battery());
   markup_renderer.register_bitmap("icon_arrow_up", bitmap_t::create_arrow_up());
 
   // Load Markup (after registering bitmaps)
@@ -144,7 +144,7 @@ auto main() -> int
     }
 
     int graph_x = 68;
-    int graph_y = 20;
+    int graph_y = 22;
     int graph_w = 56;
     int graph_h = 20;
 

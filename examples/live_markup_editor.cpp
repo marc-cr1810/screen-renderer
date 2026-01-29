@@ -20,24 +20,25 @@ const int APP_HEIGHT = 64;
 // Initial Layout
 const char *initial_layout = R"(<screen>
     <style id="header" scale="1" />
-    <style id="big" scale="2" />
+    <style id="big" scale="3" />
     
     <rect x="0" y="0" w="128" h="64" fill="false" />
     <line x1="0" y1="10" x2="127" y2="10" />
-    <text style="header" x="5" y="2" text="LIVE EDITOR" />
-    <bitmap src="icon_battery" x="110" y="1" />
+    <text style="header" x="5" y="2" text="LIVE PREVIEW" />
+    
+    <group x="105" y="2">
+        <bitmap src="icon_battery" x="-13" y="0" />
+        <text style="header" x="0" y="0" text="80%" />
+    </group>
     
     <group x="10" y="20">
-        <text style="header" x="0" y="0" text="Counter:" />
+        <text style="header" x="0" y="0" text="COUNT" />
         <text id="counter" style="big" x="0" y="10" text="0" />
+        <bitmap src="icon_drone" x="30" y="20" />
     </group>
 
-    <group x="80" y="25">
-       <circle cx="20" cy="20" r="10" fill="false" />
-       <bitmap src="icon_drone" x="12" y="12" />
-    </group>
-    
-    <text id="help" x="5" y="55" text="Try clicking elements!" visible="true" />
+    <line x1="0" y1="54" x2="127" y2="54" />
+    <text id="status" x="5" y="56" text="SYSTEM READY" visible="true" />
 </screen>)";
 
 // Suggestion Database

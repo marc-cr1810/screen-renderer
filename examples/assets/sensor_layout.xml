@@ -1,46 +1,47 @@
 <screen>
     <!-- Styles -->
     <style id="header_text" scale="1" />
-    <style id="big_value" scale="5" />
+    <style id="big_value" scale="4" />
     <style id="label" scale="1" />
 
-    <!-- Header -->
-    <line x1="0" y1="9" x2="127" y2="9" />
-    <text style="header_text" x="2" y="1" text="SENSOR STATUS" />
+    <!-- Header: Perfectly spaced 128px -->
+    <!-- SENSOR STATUS(78) + NET(18) + ICON(12) + 100%(24) = 132... still too wide! -->
+    <!-- Let's shorten: "SENSORS" (42) or just accept tight fit -->
+    <!-- "SENSOR STATUS" at 2. Ends at 80. -->
+    <!-- Let's move them: -->
+    <text style="header_text" x="1" y="1" text="SENSOR STATUS" />
+    <text id="network" x="80" y="1" text="NET" visible="false" /> <!-- Hide NET to fit battery clearly -->
     
     <!-- Battery Group (Icon + Text) -->
-    <group x="105" y="1">
-        <bitmap src="icon_battery" x="-12" y="0" />
+    <group x="110" y="1">
+        <bitmap src="icon_battery" x="-14" y="0" />
         <text id="battery" x="0" y="0" text="100%" />
     </group>
-
-    <text id="network" x="75" y="1" text="NET" />
-    <bitmap src="icon_arrow_up" x="65" y="1" visible="false" id="upload_icon" />
+    <line x1="0" y1="9" x2="127" y2="9" />
 
     <!-- Left Panel: Drone Count -->
-    <group x="5" y="12">
-        <text style="label" x="0" y="0" text="DETECTED" />
-        <!-- Big number -->
-        <text id="drone_count" style="big_value" x="6" y="10" text="0" />
-        <bitmap src="icon_drone" x="35" y="10" />
+    <group x="0" y="12">
+        <text style="label" x="5" y="0" text="DETECTED" />
+        <!-- Big number scaled by 4, original-like position -->
+        <text id="drone_count" style="big_value" x="15" y="12" text="0" />
     </group>
 
     <!-- Right Panel: Graphs & Stats -->
-    <line x1="64" y1="9" x2="64" y2="54" />
+    <line x1="64" y1="10" x2="64" y2="52" />
     
-    <group x="68" y="12">
-        <text style="label" x="0" y="0" text="ACTIVITY" />
-        <!-- Graph placeholder container -->
-        <rect x="0" y="8" w="56" h="20" fill="false" />
+    <group x="64" y="12">
+        <text style="label" x="8" y="0" text="ACTIVITY" />
+        <!-- Graph placeholder container at y=10 (global 22) -->
+        <rect x="4" y="10" w="56" h="20" fill="false" />
     </group>
 
-    <group x="68" y="44">
-        <text style="label" x="0" y="0" text="CPU" />
-        <rect id="cpu_bar_frame" x="20" y="0" w="36" h="6" fill="false" />
+    <group x="64" y="44">
+        <text style="label" x="8" y="0" text="CPU" />
+        <rect id="cpu_bar_frame" x="24" y="0" w="36" h="6" fill="false" />
     </group>
 
     <!-- Footer -->
-    <line x1="0" y1="55" x2="127" y2="55" />
-    <text id="coords" x="2" y="57" text="-33.86,151.20" />
-    <text id="no_fix" x="100" y="57" text="NO FIX" visible="false" />
+    <line x1="0" y1="54" x2="127" y2="54" />
+    <text id="coords" x="2" y="56" text="-33.8688,151.2093" />
+    <text id="no_fix" x="100" y="56" text="NO FIX" visible="false" />
 </screen>

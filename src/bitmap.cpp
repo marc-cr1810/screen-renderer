@@ -301,4 +301,62 @@ auto bitmap_t::create_cross() -> bitmap_t
   return bmp;
 }
 
+auto bitmap_t::create_drone() -> bitmap_t
+{
+  bitmap_t bmp(14, 7);
+  // Center body
+  bmp.set_pixel(6, 3, true);
+  bmp.set_pixel(7, 3, true);
+  // Arms
+  bmp.set_pixel(4, 2, true);
+  bmp.set_pixel(5, 3, true);
+  bmp.set_pixel(8, 3, true);
+  bmp.set_pixel(9, 2, true);
+  bmp.set_pixel(4, 4, true);
+  bmp.set_pixel(9, 4, true);
+  // Rotors
+  bmp.set_pixel(3, 1, true);
+  bmp.set_pixel(4, 1, true);
+  bmp.set_pixel(5, 1, true);
+  bmp.set_pixel(10, 1, true);
+  bmp.set_pixel(11, 1, true);
+  bmp.set_pixel(9, 1, true);
+  bmp.set_pixel(3, 5, true);
+  bmp.set_pixel(4, 5, true);
+  bmp.set_pixel(5, 5, true);
+  bmp.set_pixel(10, 5, true);
+  bmp.set_pixel(11, 5, true);
+  bmp.set_pixel(9, 5, true);
+  return bmp;
+}
+
+auto bitmap_t::create_battery() -> bitmap_t
+{
+  bitmap_t bmp(12, 7);
+  // Body outline
+  for (int x = 0; x < 10; ++x)
+  {
+    bmp.set_pixel(x, 0, true);
+    bmp.set_pixel(x, 6, true);
+  }
+  for (int y = 0; y < 7; ++y)
+  {
+    bmp.set_pixel(0, y, true);
+    bmp.set_pixel(10, y, true);
+  }
+  // Terminal
+  bmp.set_pixel(11, 2, true);
+  bmp.set_pixel(11, 3, true);
+  bmp.set_pixel(11, 4, true);
+  // Fill 80% (fixed for icon)
+  for (int x = 2; x < 8; ++x)
+  {
+    for (int y = 2; y < 5; ++y)
+    {
+      bmp.set_pixel(x, y, true);
+    }
+  }
+  return bmp;
+}
+
 } // namespace screen_renderer
