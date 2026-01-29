@@ -6,7 +6,7 @@
 
     <!-- 1. Background and Header -->
     <rect x="0" y="0" w="128" h="10" fill="true" />
-    <text x="2" y="1" text="SYSTEM MONITOR" scale="1" color="#000000" />
+    <text align="center" y="1" text="SYSTEM MONITOR" scale="1" color="#000000" />
     <text x="100" y="1" text="{battery}" scale="1" />
 
     <!-- 2. Conditional Rendering -->

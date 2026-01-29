@@ -387,6 +387,37 @@ auto markup_renderer_t::render(screen_t &screen, float dt) -> void
   render_element(screen, m_root, 0, 0, screen.get_width(), screen.get_height());
 }
 
+// Helper function to apply horizontal alignment to any element
+// Returns the adjusted x position based on element width and align attribute
+static int apply_alignment(int x, int element_width, const std::string &align, int parent_w, bool has_x_attr)
+{
+  // If x wasn't specified and we have alignment, use smart defaults
+  if (!has_x_attr)
+  {
+    if (align == "center")
+    {
+      x = parent_w / 2;
+    }
+    else if (align == "right")
+    {
+      x = parent_w;
+    }
+  }
+
+  // Apply alignment offset based on element width
+  if (align == "center")
+  {
+    return x - element_width / 2;
+  }
+  else if (align == "right")
+  {
+    return x - element_width;
+  }
+
+  // left or no alignment
+  return x;
+}
+
 auto markup_renderer_t::render_element(screen_t &screen, const std::shared_ptr<element_t> &element, int parent_x, int parent_y, int parent_w, int parent_h) -> void
 {
   if (!element)
@@ -597,11 +628,17 @@ auto markup_renderer_t::render_element(screen_t &screen, const std::shared_ptr<e
   // Group / Layouts
   if (element->get_name() == "group" || element->get_name() == "hbox" || element->get_name() == "vbox")
   {
+    std::string align = get_attr("align");
+    bool has_x = !element->get_attribute("x").empty();
+
     int x = get_int_attr("x", 0, parent_w);
     int y = get_int_attr("y", 0, parent_h);
     int w = get_int_attr("w", parent_w, parent_w);
     int h = get_int_attr("h", parent_h, parent_h);
     int spacing = get_int_attr("spacing", 0, (element->get_name() == "hbox" ? w : h));
+
+    x = parent_x + apply_alignment(x, w, align, parent_w, has_x);
+    y = parent_y + y;
 
     bool is_hbox = element->get_name() == "hbox";
     bool is_vbox = element->get_name() == "vbox";
@@ -611,7 +648,7 @@ auto markup_renderer_t::render_element(screen_t &screen, const std::shared_ptr<e
     {
       if (is_hbox)
       {
-        render_element(screen, child, parent_x + x + current_offset, parent_y + y, w, h);
+        render_element(screen, child, x + current_offset, y, w, h);
         // We need a way to know child's width to auto-layout.
         // For now, let's assume a default width if not specified, or use some simple heuristic.
         // Better: child might have its own 'w' attribute.
@@ -625,7 +662,7 @@ auto markup_renderer_t::render_element(screen_t &screen, const std::shared_ptr<e
       }
       else if (is_vbox)
       {
-        render_element(screen, child, parent_x + x, parent_y + y + current_offset, w, h);
+        render_element(screen, child, x, y + current_offset, w, h);
         int child_h = child->get_int_attribute("h", 0);
         if (child_h == 0 && child->get_name() == "text")
         {
@@ -635,7 +672,7 @@ auto markup_renderer_t::render_element(screen_t &screen, const std::shared_ptr<e
       }
       else // Simple group
       {
-        render_element(screen, child, parent_x + x, parent_y + y, w, h);
+        render_element(screen, child, x, y, w, h);
       }
     }
     return;
@@ -643,7 +680,10 @@ auto markup_renderer_t::render_element(screen_t &screen, const std::shared_ptr<e
 
   if (element->get_name() == "text")
   {
-    int x = parent_x + get_int_attr("x", 0, parent_w);
+    std::string align = get_attr("align");
+    bool has_x = !element->get_attribute("x").empty();
+
+    int x = get_int_attr("x", 0, parent_w);
     int y = parent_y + get_int_attr("y", 0, parent_h);
     int scale = get_int_attr("scale", 1);
 
@@ -664,12 +704,26 @@ auto markup_renderer_t::render_element(screen_t &screen, const std::shared_ptr<e
       }
     }
 
+    // Calculate text width
+    int text_width = 0;
+    for (char c : content)
+    {
+      auto bitmap = m_font.get_character(c);
+      text_width += (bitmap.get_width() + 1) * scale;
+    }
+    if (!content.empty())
+    {
+      text_width -= scale; // Remove trailing space
+    }
+
+    // Apply alignment
+    x = parent_x + apply_alignment(x, text_width, align, parent_w, has_x);
+
     bool invert = get_bool_attr("invert");
-    bool pixel_value = !invert; // If invert, use false (background); otherwise true (foreground)
+    bool pixel_value = !invert;
 
     if (scale > 1)
     {
-      // For scaled text, we need to draw manually with the correct pixel value
       draw_text_scaled_with_value(screen, m_font, content, x, y, scale, pixel_value);
     }
     else
@@ -679,11 +733,16 @@ auto markup_renderer_t::render_element(screen_t &screen, const std::shared_ptr<e
   }
   else if (element->get_name() == "rect")
   {
-    int x = parent_x + get_int_attr("x", 0, parent_w);
+    std::string align = get_attr("align");
+    bool has_x = !element->get_attribute("x").empty();
+
+    int x = get_int_attr("x", 0, parent_w);
     int y = parent_y + get_int_attr("y", 0, parent_h);
     int w = get_int_attr("w", 0, parent_w);
     int h = get_int_attr("h", 0, parent_h);
     bool fill = get_bool_attr("fill");
+
+    x = parent_x + apply_alignment(x, w, align, parent_w, has_x);
 
     if (fill)
     {
@@ -707,34 +766,51 @@ auto markup_renderer_t::render_element(screen_t &screen, const std::shared_ptr<e
   }
   else if (element->get_name() == "circle")
   {
-    int x = parent_x + get_int_attr("cx", 0, parent_w);
+    std::string align = get_attr("align");
+    bool has_cx = !element->get_attribute("cx").empty();
+
+    int cx = get_int_attr("cx", 0, parent_w);
     int y = parent_y + get_int_attr("cy", 0, parent_h);
     int r = get_int_attr("r", 0, std::min(parent_w, parent_h));
     bool fill = get_bool_attr("fill");
+
+    cx = parent_x + apply_alignment(cx, r * 2, align, parent_w, has_cx);
+    int x = cx;
 
     draw_circle(screen, x, y, r, fill);
   }
   else if (element->get_name() == "bitmap")
   {
-    int x = parent_x + get_int_attr("x", 0, parent_w);
+    std::string align = get_attr("align");
+    bool has_x = !element->get_attribute("x").empty();
+
+    int x = get_int_attr("x", 0, parent_w);
     int y = parent_y + get_int_attr("y", 0, parent_h);
     std::string src = get_attr("src");
     bool invert = get_bool_attr("invert");
 
     if (m_bitmaps.count(src))
     {
+      int bitmap_width = m_bitmaps.at(src).get_width();
+      x = parent_x + apply_alignment(x, bitmap_width, align, parent_w, has_x);
+
       bool pixel_value = !invert;
       screen.draw_bitmap(m_bitmaps.at(src), x, y, pixel_value);
     }
   }
   else if (element->get_name() == "progress")
   {
-    int x = parent_x + get_int_attr("x", 0, parent_w);
+    std::string align = get_attr("align");
+    bool has_x = !element->get_attribute("x").empty();
+
+    int x = get_int_attr("x", 0, parent_w);
     int y = parent_y + get_int_attr("y", 0, parent_h);
     int w = get_int_attr("w", 20, parent_w);
     int h = get_int_attr("h", 5, parent_h);
     float value = get_int_attr("value", 0);
     float max = get_int_attr("max", 100);
+
+    x = parent_x + apply_alignment(x, w, align, parent_w, has_x);
 
     if (max <= 0)
       max = 1;

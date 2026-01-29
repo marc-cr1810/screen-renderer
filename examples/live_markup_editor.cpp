@@ -285,30 +285,41 @@ auto main() -> int
                        "r=\"8\" fill=\"false\" />\n  <circle cx=\"97\" cy=\"19\" r=\"8\" fill=\"true\" />\n  <line x1=\"10\" y1=\"35\" x2=\"118\" y2=\"35\" />\n  <line x1=\"10\" y1=\"40\" x2=\"118\" y2=\"50\" />\n</screen>");
         }
 
-        // UI/DASHBOARD EXAMPLES
         ImGui::Separator();
-        if (ImGui::MenuItem("3. Digital Watch"))
+        if (ImGui::MenuItem("3. Alignment Demo"))
         {
-          load_example("<screen>\n  <rect x=\"0\" y=\"0\" w=\"100%\" h=\"100%\" fill=\"false\" />\n  <text x=\"28\" y=\"10\" text=\"CASIO\" scale=\"1\" />\n  <text x=\"20\" y=\"24\" text=\"12:34\" scale=\"3\" />\n  <text x=\"40\" y=\"48\" "
+          load_example(
+              "<screen>\n  <text align=\"center\" y=\"2\" text=\"ALIGN DEMO\" />\n  <line x1=\"0\" y1=\"10\" x2=\"128\" y2=\"10\" />\n  \n  <text x=\"0\" y=\"14\" text=\"Left\" align=\"left\" />\n  <text x=\"64\" y=\"14\" "
+              "text=\"Center\" align=\"center\" />\n  <text x=\"128\" y=\"14\" text=\"Right\" align=\"right\" />\n  \n  <rect y=\"25\" w=\"30\" h=\"8\" align=\"left\" fill=\"true\" />\n  <rect y=\"25\" w=\"30\" h=\"8\" align=\"center\" "
+              "fill=\"false\" />\n  "
+              "<rect y=\"25\" w=\"30\" h=\"8\" align=\"right\" fill=\"true\" />\n  \n  <bitmap src=\"icon_drone\" align=\"center\" y=\"38\" />\n  \n  <progress align=\"center\" y=\"52\" w=\"80\" h=\"6\" value=\"70\" />\n</screen>");
+        }
+        if (ImGui::MenuItem("4. Digital Watch"))
+        {
+          load_example("<screen>\n  <rect x=\"0\" y=\"0\" w=\"100%\" h=\"100%\" fill=\"false\" />\n  <text align=\"center\" y=\"10\" text=\"CASIO\" scale=\"1\" />\n  <text align=\"center\" y=\"24\" text=\"12:34\" scale=\"3\" />\n  <text "
+                       "align=\"center\" y=\"48\" "
                        "text=\"MON 29 JAN\" />\n</screen>");
         }
-        if (ImGui::MenuItem("4. Medical Monitor"))
+        if (ImGui::MenuItem("5. Medical Monitor"))
         {
-          load_example("<screen>\n  <rect x=\"0\" y=\"0\" w=\"128\" h=\"10\" fill=\"true\" />\n  <text x=\"20\" y=\"2\" text=\"PATIENT MONITOR\" invert=\"true\" />\n  <text x=\"5\" y=\"16\" text=\"HR: 72 BPM\" />\n  <text x=\"70\" "
-                       "y=\"16\" text=\"SPO2: 98%\" />\n  <text x=\"5\" y=\"26\" text=\"TEMP: 36.5C\" />\n  <text x=\"70\" y=\"26\" text=\"BP: 120/80\" />\n  <text x=\"35\" y=\"40\" text=\"STATUS: STABLE\" />\n</screen>");
+          load_example(
+              "<screen>\n  <rect x=\"0\" y=\"0\" w=\"128\" h=\"10\" fill=\"true\" />\n  <text align=\"center\" y=\"2\" text=\"PATIENT MONITOR\" invert=\"true\" />\n  \n  <text x=\"5\" y=\"16\" text=\"HR: 72 BPM\" />\n  <text x=\"70\" "
+              "y=\"16\" text=\"SPO2: 98%\" />\n  <text x=\"5\" y=\"26\" text=\"TEMP: 36.5C\" />\n  <text x=\"70\" y=\"26\" text=\"BP: 120/80\" />\n  <text align=\"center\" y=\"40\" text=\"STATUS: STABLE\" />\n</screen>");
         }
-        if (ImGui::MenuItem("5. Music Player"))
+        if (ImGui::MenuItem("6. Music Player"))
         {
-          load_example("<screen>\n  <text x=\"30\" y=\"8\" text=\"NOW PLAYING\" scale=\"1\" />\n  <text x=\"20\" y=\"24\" text=\"Neon Dreams\" scale=\"1\" "
-                       "/>\n  <progress x=\"10\" y=\"36\" w=\"108\" h=\"4\" value=\"45\" max=\"100\" />\n  <text x=\"32\" y=\"42\" text=\"01:32 / 03:25\" />\n  <circle cx=\"34\" cy=\"54\" r=\"4\" fill=\"true\" />\n  <circle cx=\"64\" "
+          load_example("<screen>\n  <text x=\"64\" y=\"8\" text=\"NOW PLAYING\" scale=\"1\" align=\"center\" />\n  <text x=\"64\" y=\"24\" text=\"Neon Dreams\" scale=\"1\" align=\"center\" "
+                       "/>\n  <progress x=\"10\" y=\"36\" w=\"108\" h=\"4\" value=\"45\" max=\"100\" />\n  <text x=\"64\" y=\"42\" text=\"01:32 / 03:25\" align=\"center\" />\n  <circle cx=\"34\" cy=\"54\" r=\"4\" fill=\"true\" />\n  "
+                       "<circle cx=\"64\" "
                        "cy=\"54\" r=\"6\" fill=\"true\" />\n  <circle cx=\"94\" cy=\"54\" r=\"4\" fill=\"true\" />\n</screen>");
         }
         if (ImGui::MenuItem("6. Retro Game HUD"))
         {
-          load_example("<screen>\n  <rect x=\"0\" y=\"0\" w=\"100%\" h=\"12\" fill=\"true\" />\n  <text x=\"4\" y=\"2\" text=\"SCORE:9999\" scale=\"1\" invert=\"true\" />\n  <text x=\"80\" y=\"2\" text=\"LIVES:3\" "
-                       "scale=\"1\" invert=\"true\" />\n  <group x=\"5\" y=\"20\">\n    <bitmap src=\"icon_drone\" x=\"0\" y=\"0\" />\n    <bitmap src=\"icon_drone\" x=\"15\" y=\"0\" />\n    <bitmap src=\"icon_drone\" x=\"30\" y=\"0\" "
+          load_example("<screen>\n  <rect x=\"0\" y=\"0\" w=\"100%\" h=\"12\" fill=\"true\" />\n  <text x=\"4\" y=\"2\" text=\"SCORE:9999\" scale=\"1\" invert=\"true\" />\n  <text x=\"124\" y=\"2\" text=\"LIVES:3\" "
+                       "scale=\"1\" invert=\"true\" align=\"right\" />\n  <group x=\"5\" y=\"20\">\n    <bitmap src=\"icon_drone\" x=\"0\" y=\"0\" />\n    <bitmap src=\"icon_drone\" x=\"15\" y=\"0\" />\n    <bitmap src=\"icon_drone\" "
+                       "x=\"30\" y=\"0\" "
                        "/>\n  </group>\n  "
-                       "<text x=\"20\" y=\"50\" text=\"GET READY!\" pulse=\"2\" scale=\"2\" />\n</screen>");
+                       "<text x=\"64\" y=\"50\" text=\"GET READY!\" pulse=\"2\" scale=\"2\" align=\"center\" />\n</screen>");
         }
         if (ImGui::MenuItem("7. Industrial Control"))
         {
@@ -323,8 +334,9 @@ auto main() -> int
         ImGui::Separator();
         if (ImGui::MenuItem("8. Weather Station"))
         {
-          load_example("<screen>\n  <text x=\"35\" y=\"4\" text=\"WEATHER\" scale=\"1\" />\n  <circle cx=\"64\" cy=\"24\" r=\"12\" fill=\"false\" />\n  <text x=\"46\" y=\"18\" text=\"23°C\" scale=\"2\" />\n  <text x=\"28\" y=\"42\" "
-                       "text=\"Humidity: 65%\" />\n  <text x=\"28\" y=\"52\" text=\"Wind: 12 km/h\" />\n</screen>");
+          load_example("<screen>\n  <text x=\"64\" y=\"4\" text=\"WEATHER\" scale=\"1\" align=\"center\" />\n  <circle cx=\"64\" cy=\"24\" r=\"12\" fill=\"false\" />\n  <text x=\"64\" y=\"18\" text=\"23°C\" scale=\"2\" align=\"center\" "
+                       "/>\n  <text x=\"64\" y=\"42\" "
+                       "text=\"Humidity: 65%\" align=\"center\" />\n  <text x=\"64\" y=\"52\" text=\"Wind: 12 km/h\" align=\"center\" />\n</screen>");
         }
         if (ImGui::MenuItem("9. Data Dashboard"))
         {
@@ -775,7 +787,7 @@ auto main() -> int
         ImGui::Separator();
 
         std::vector<std::string> known_int_attrs = {"x", "y", "w", "h", "x1", "y1", "x2", "y2", "cx", "cy", "r", "scale", "spacing"};
-        std::vector<std::string> known_bool_attrs = {"fill", "visible"};
+        std::vector<std::string> known_bool_attrs = {"fill", "visible", "invert"};
 
         bool changed = false;
         std::map<std::string, std::string> current_attrs = selected_element->get_attributes();
@@ -806,7 +818,14 @@ auto main() -> int
             }
             else if (is_bool)
             {
-              bool v = (val == "true" || val == "1");
+              // Default values for boolean attributes
+              bool default_value = true; // Most defaults are true
+              if (attr == "invert")
+                default_value = false;
+
+              // If attribute is not set, use default value
+              bool v = val.empty() ? default_value : (val == "true" || val == "1");
+
               if (ImGui::Checkbox(attr.c_str(), &v))
               {
                 selected_element->add_attribute(attr, v ? "true" : "false");
