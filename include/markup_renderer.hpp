@@ -62,6 +62,7 @@ private:
 
   // Expression evaluation
   auto evaluate_condition(const std::string &expression) -> bool;
+  auto evaluate_expression(const std::string &expression) -> float;
 
   // Helpers
   auto find_element_by_id(const std::string &id) -> std::shared_ptr<element_t>;

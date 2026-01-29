@@ -1,7 +1,6 @@
 #include "simple_markup.hpp"
 #include <algorithm>
 #include <fstream>
-#include <iostream>
 #include <sstream>
 #include <stack>
 
@@ -265,7 +264,36 @@ auto simple_markup_parser_t::parse(const std::string &xml_content, std::vector<p
       continue;
     }
 
-    size_t gt_pos = xml_content.find('>', lt_pos);
+    // Find the closing '>' but respect quotes
+    size_t gt_pos = std::string::npos;
+    bool in_quote = false;
+    char quote_char = 0;
+
+    for (size_t i = lt_pos + 1; i < xml_content.length(); ++i)
+    {
+      char c = xml_content[i];
+      if (in_quote)
+      {
+        if (c == quote_char)
+        {
+          in_quote = false;
+        }
+      }
+      else
+      {
+        if (c == '"' || c == '\'')
+        {
+          in_quote = true;
+          quote_char = c;
+        }
+        else if (c == '>')
+        {
+          gt_pos = i;
+          break;
+        }
+      }
+    }
+
     if (gt_pos == std::string::npos)
     {
       out_errors.push_back({current_line, get_column(xml_content, lt_pos), "Unclosed tag (missing '>')"});

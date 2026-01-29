@@ -2,6 +2,7 @@
 #include <iostream>
 #include <algorithm>
 #include <cmath>
+#include <functional>
 
 namespace screen_renderer
 {
@@ -503,6 +504,8 @@ auto markup_renderer_t::render_element(screen_t &screen, const std::shared_ptr<e
   {
     if (val.empty())
       return 0;
+
+    // Check if it's a percentage
     if (val.back() == '%')
     {
       try
@@ -515,14 +518,10 @@ auto markup_renderer_t::render_element(screen_t &screen, const std::shared_ptr<e
         return 0;
       }
     }
-    try
-    {
-      return std::stoi(val);
-    }
-    catch (...)
-    {
-      return 0;
-    }
+
+    // Try evaluating as a math expression first
+    // If it contains operators, brackets or is clearly numeric/variable
+    return (int)evaluate_expression(val);
   };
 
   auto get_int_attr = [&](const std::string &key, int def = 0, int total = 0) -> int
@@ -586,8 +585,33 @@ auto markup_renderer_t::render_element(screen_t &screen, const std::shared_ptr<e
 
       for (size_t i = 0; i < items.size(); ++i)
       {
-        m_data[each] = items[i];
+        std::string item_str = items[i];
+        m_data[each] = item_str;
         m_data[each + "_index"] = std::to_string(i);
+        m_data["item_index"] = std::to_string(i); // Generic index
+
+        // Check for properties in the format "key:value|key2:value2"
+        if (item_str.find(':') != std::string::npos)
+        {
+          size_t start = 0;
+          while (start < item_str.length())
+          {
+            size_t pipe = item_str.find('|', start);
+            std::string pair = item_str.substr(start, pipe == std::string::npos ? std::string::npos : pipe - start);
+
+            size_t colon = pair.find(':');
+            if (colon != std::string::npos)
+            {
+              std::string k = pair.substr(0, colon);
+              std::string v = pair.substr(colon + 1);
+              m_data[each + "." + k] = v;
+            }
+
+            if (pipe == std::string::npos)
+              break;
+            start = pipe + 1;
+          }
+        }
 
         for (auto &child : element->get_children())
         {
@@ -890,20 +914,62 @@ auto markup_renderer_t::evaluate_condition(const std::string &expression) -> boo
   if (expression.empty())
     return true;
 
-  // Simple direct boolean check
-  if (expression == "true" || expression == "1")
-    return true;
-  if (expression == "false" || expression == "0")
-    return false;
+  // 1. Find operator
+  std::string ops[] = {"==", "!=", "<=", ">=", "<", ">"};
+  std::string found_op = "";
+  size_t op_pos = std::string::npos;
 
-  // Check if it's a data key directly
-  std::string data_val = get_data(expression);
-  if (!data_val.empty())
+  for (const auto &op : ops)
   {
-    return data_val == "true" || data_val == "1";
+    op_pos = expression.find(op);
+    if (op_pos != std::string::npos)
+    {
+      found_op = op;
+      break;
+    }
   }
 
-  // Basic expression evaluation: "{var} op value"
+  if (found_op.empty())
+  {
+    // No operator, check if it's a direct boolean or data key
+    std::string val = expression;
+    if (val[0] == '{' && val.back() == '}')
+    {
+      val = get_data(val.substr(1, val.length() - 2));
+    }
+    bool result = val == "true" || val == "1" || val == "yes";
+    return result;
+  }
+
+  // 2. Evaluate both sides as expressions
+  std::string left_str = expression.substr(0, op_pos);
+  std::string right_str = expression.substr(op_pos + found_op.length());
+
+  float l_val = evaluate_expression(left_str);
+  float r_val = evaluate_expression(right_str);
+
+  bool result = false;
+  if (found_op == "==")
+    result = std::abs(l_val - r_val) < 0.001f;
+  else if (found_op == "!=")
+    result = std::abs(l_val - r_val) > 0.001f;
+  else if (found_op == "<=")
+    result = l_val <= r_val;
+  else if (found_op == ">=")
+    result = l_val >= r_val;
+  else if (found_op == "<")
+    result = l_val < r_val;
+  else if (found_op == ">")
+    result = l_val > r_val;
+
+  return result;
+}
+
+auto markup_renderer_t::evaluate_expression(const std::string &expression) -> float
+{
+  if (expression.empty())
+    return 0.0f;
+
   // 1. Resolve variables
   std::string resolved = expression;
   size_t start_pos = 0;
@@ -918,51 +984,82 @@ auto markup_renderer_t::evaluate_condition(const std::string &expression) -> boo
     start_pos += val.length();
   }
 
-  // 2. Find operator
-  std::string ops[] = {"==", "!=", "<=", ">=", "<", ">"};
-  for (const auto &op : ops)
+  // 2. Simple Recursive Descent Parser
+  const char *curr = resolved.c_str();
+
+  auto skip_ws = [&]()
   {
-    size_t op_pos = resolved.find(op);
-    if (op_pos != std::string::npos)
+    while (*curr && isspace(*curr))
+      curr++;
+  };
+
+  std::function<float()> parse_expr;
+  std::function<float()> parse_term;
+  std::function<float()> parse_factor;
+
+  parse_factor = [&]() -> float
+  {
+    skip_ws();
+    if (*curr == '(')
     {
-      std::string left = resolved.substr(0, op_pos);
-      std::string right = resolved.substr(op_pos + op.length());
-      // Trim
-      left.erase(0, left.find_first_not_of(" "));
-      left.erase(left.find_last_not_of(" ") + 1);
-      right.erase(0, right.find_first_not_of(" "));
-      right.erase(right.find_last_not_of(" ") + 1);
-
-      try
-      {
-        float l_val = std::stof(left);
-        float r_val = std::stof(right);
-
-        if (op == "==")
-          return l_val == r_val;
-        if (op == "!=")
-          return l_val != r_val;
-        if (op == "<=")
-          return l_val <= r_val;
-        if (op == ">=")
-          return l_val >= r_val;
-        if (op == "<")
-          return l_val < r_val;
-        if (op == ">")
-          return l_val > r_val;
-      }
-      catch (...)
-      {
-        // String comparison fallback
-        if (op == "==")
-          return left == right;
-        if (op == "!=")
-          return left != right;
-      }
+      curr++; // skip (
+      float val = parse_expr();
+      skip_ws();
+      if (*curr == ')')
+        curr++; // skip )
+      return val;
     }
+
+    // Number
+    char *end;
+    float val = strtof(curr, &end);
+    if (curr == end)
+      return 0.0f;
+    curr = end;
+    return val;
+  };
+
+  parse_term = [&]() -> float
+  {
+    float val = parse_factor();
+    skip_ws();
+    while (*curr == '*' || *curr == '/')
+    {
+      char op = *curr++;
+      float next = parse_factor();
+      if (op == '*')
+        val *= next;
+      else if (next != 0)
+        val /= next;
+      skip_ws();
+    }
+    return val;
+  };
+
+  parse_expr = [&]() -> float
+  {
+    float val = parse_term();
+    skip_ws();
+    while (*curr == '+' || *curr == '-')
+    {
+      char op = *curr++;
+      float next = parse_term();
+      if (op == '+')
+        val += next;
+      else
+        val -= next;
+      skip_ws();
+    }
+    return val;
+  };
+
+  try
+  {
+    return parse_expr();
   }
-
-  return false;
+  catch (...)
+  {
+    return 0.0f;
+  }
 }
-
 } // namespace screen_renderer

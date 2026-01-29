@@ -272,6 +272,7 @@ auto main() -> int
           markup_renderer.set_data("battery", "85%");
           markup_renderer.set_data("drone_count", "12");
           markup_renderer.set_data("status_ok", "true");
+          markup_renderer.set_data_list("sensors", {"name:TEMP|value:45", "name:HUMID|value:62", "name:PRESS|value:88"});
         };
 
         // BASIC EXAMPLES
