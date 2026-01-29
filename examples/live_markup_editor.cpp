@@ -23,10 +23,80 @@ const char *initial_layout = R"(<screen>
     <circle cx="100" cy="30" r="10" fill="false" />
 </screen>)";
 
+// Suggestion Database
+struct TagInfo
+{
+  std::string description;
+  std::vector<std::string> attributes;
+};
+
+std::map<std::string, TagInfo> tag_db = {{"screen", {"Root element", {}}},
+                                         {"rect", {"Draws a rectangle", {"x", "y", "w", "h", "fill"}}},
+                                         {"line", {"Draws a line", {"x1", "y1", "x2", "y2"}}},
+                                         {"circle", {"Draws a circle", {"cx", "cy", "r", "fill"}}},
+                                         {"text", {"Draws text", {"x", "y", "text", "id", "scale"}}}};
+
+struct SuggestionContext
+{
+  enum Type
+  {
+    None,
+    Tag,
+    Attribute
+  };
+  Type type = None;
+  std::string tag_name;
+  std::string partial_input;
+};
+
+auto get_suggestion_context(const std::string &line, int column) -> SuggestionContext
+{
+  if (column < 0 || column > (int)line.length())
+    return {};
+
+  // Look backwards for '<'
+  int start_tag = -1;
+  for (int i = column - 1; i >= 0; --i)
+  {
+    if (line[i] == '>')
+      return {}; // Closed tag
+    if (line[i] == '<')
+    {
+      start_tag = i;
+      break;
+    }
+  }
+
+  if (start_tag == -1)
+    return {};
+
+  std::string content = line.substr(start_tag + 1, column - (start_tag + 1));
+
+  // Check if we have spaces
+  size_t first_space = content.find(' ');
+  if (first_space == std::string::npos)
+  {
+    // We are typing the tag name
+    return {SuggestionContext::Tag, "", content};
+  }
+  else
+  {
+    // We are typing attributes
+    std::string tag_name = content.substr(0, first_space);
+
+    // Find the last word being typed
+    size_t last_space = content.find_last_of(' ');
+    std::string partial_attr = content.substr(last_space + 1);
+
+    return {SuggestionContext::Attribute, tag_name, partial_attr};
+  }
+}
+
 auto main() -> int
 {
   if (!glfwInit())
     return -1;
+  // ... (existing window setup)
 
   glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
   glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
@@ -112,6 +182,68 @@ auto main() -> int
       {
         markup_renderer.load_layout_from_string(current_text);
         last_text = current_text;
+      }
+
+      ImGui::End();
+    }
+
+    // Suggestions Window
+    {
+      ImGui::Begin("Context Help");
+
+      auto cursor = editor.GetCursorPosition();
+      std::string line = editor.GetCurrentLineText();
+      auto context = get_suggestion_context(line, cursor.mColumn);
+
+      if (context.type == SuggestionContext::Tag)
+      {
+        ImGui::Text("Suggesting Tags for '<%s':", context.partial_input.c_str());
+        ImGui::Separator();
+        for (const auto &pair : tag_db)
+        {
+          if (pair.first.find(context.partial_input) == 0)
+          { // Prefix match
+            if (ImGui::Selectable(pair.first.c_str()))
+            {
+              editor.InsertText(pair.first.substr(context.partial_input.length()) + " ");
+            }
+            if (ImGui::IsItemHovered())
+            {
+              ImGui::SetTooltip("%s", pair.second.description.c_str());
+            }
+          }
+        }
+      }
+      else if (context.type == SuggestionContext::Attribute)
+      {
+        ImGui::Text("Attributes for <%s> (matching '%s'):", context.tag_name.c_str(), context.partial_input.c_str());
+        ImGui::Separator();
+        if (tag_db.find(context.tag_name) != tag_db.end())
+        {
+          const auto &info = tag_db[context.tag_name];
+          ImGui::TextWrapped("%s", info.description.c_str());
+          ImGui::Separator();
+          for (const auto &attr : info.attributes)
+          {
+            if (attr.find(context.partial_input) == 0)
+            {
+              if (ImGui::Selectable(attr.c_str()))
+              {
+                editor.InsertText(attr.substr(context.partial_input.length()) + "=\"\"");
+                editor.MoveLeft(1); // Move inside quotes
+              }
+            }
+          }
+        }
+        else
+        {
+          ImGui::TextDisabled("Unknown tag: %s", context.tag_name.c_str());
+        }
+      }
+      else
+      {
+        ImGui::TextDisabled("Type '<' to see tag suggestions.");
+        ImGui::TextDisabled("Type inside a tag to see attributes.");
       }
 
       ImGui::End();
