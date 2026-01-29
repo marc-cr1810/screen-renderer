@@ -1,35 +1,46 @@
-<screen>
-    <style id="blink" pulse="2" />
-    <style id="header" scale="1" />
+<screen width="128" height="64">
+    <!-- 
+        Verification Layout
+        Used for validating engine updates and features.
+    -->
+
+    <!-- Global Status Row -->
+    <rect x="0" y="0" w="100%" h="12" fill="true" color="#222222" />
+    <text x="4" y="2" scale="1" text="DRONE-HUD v2.0" />
     
-    <template id="stat_box">
-        <rect x="0" y="0" w="40" h="15" fill="false" />
-        <text x="2" y="2" text="{label}" scale="1" />
-        <text x="2" y="8" text="{value}" scale="1" />
-    </template>
+    <!-- Dynamic Battery Indicator -->
+    <group x="90" y="2">
+        <bitmap src="icon_battery" x="0" y="0" />
+        <text x="15" y="0" text="{battery}" />
+    </group>
 
-    <!-- Layout Testing -->
-    <!-- Main layout container -->
-    <vbox x="2" y="2" spacing="2">
-        <text style="header" text="ADVANCED PREVIEW" />
-        <hbox spacing="4">
-            <use template="stat_box" label="BAT" value="{battery}" />
-            <use template="stat_box" label="DRN" value="{drone_count}" />
-        </hbox>
-    </vbox>
+    <line x1="0" y1="13" x2="128" y2="13" />
 
-    <!-- Percentages & Conditions -->
-    <line x1="0" y1="50" x2="100%" y2="50" />
-    <hbox x="2" y="52" w="124" spacing="10">
-        <text text="STATUS:" />
-        <if condition="status_ok">
-            <text text="SYSTEM OK" />
+    <!-- Main Viewport Area -->
+    <group x="0" y="15">
+        <!-- Target Reticle (Static Shapes) -->
+        <circle cx="64" cy="20" r="10" fill="false" />
+        <line x1="54" y1="20" x2="74" y2="20" />
+        <line x1="64" y1="10" x2="64" y2="30" />
+
+        <!-- Alert System (Conditional) -->
+        <if condition="{drone_count} > 10">
+            <rect x="34" y="10" w="60" h="20" fill="false" color="#FF0000" />
+            <text x="40" y="15" text="MULTIPLE IDS" pulse="3" />
         </if>
-        <if condition="status_warning">
-            <text style="blink" text="WARNING!" />
-        </if>
-    </hbox>
+    </group>
 
-    <!-- Animation -->
-    <circle cx="110" cy="10" r="5" fill="true" pulse="1" />
+    <!-- Telemetry (Lists and Graphs) -->
+    <group x="4" y="45">
+        <text x="0" y="0" text="ALT:" />
+        <graph x="25" y="0" w="40" h="12" data="alt_history" />
+        
+        <text x="70" y="0" text="SPD:" />
+        <graph x="95" y="0" w="30" h="12" data="speed_history" />
+    </group>
+
+    <!-- Bottom Bar -->
+    <rect x="0" y="58" w="128" h="6" fill="true" />
+    <text id="status_msg" x="4" y="58" text="GPS LOCKED: {coords}" color="#000000" />
+
 </screen>

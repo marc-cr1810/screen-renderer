@@ -252,6 +252,7 @@ auto main() -> int
   static bool show_assets = false;
   static bool show_snippets = false;
   static bool show_inspector = true;
+  static bool show_bitmap_editor = false;
 
   while (!glfwWindowShouldClose(window))
   {
@@ -288,6 +289,7 @@ auto main() -> int
         ImGui::MenuItem("Assets", nullptr, &show_assets);
         ImGui::MenuItem("Snippets", nullptr, &show_snippets);
         ImGui::MenuItem("Inspector", nullptr, &show_inspector);
+        ImGui::MenuItem("Bitmap Editor", nullptr, &show_bitmap_editor);
         ImGui::EndMenu();
       }
       ImGui::EndMainMenuBar();
@@ -590,6 +592,12 @@ auto main() -> int
     if (show_assets)
     {
       ImGui::Begin("Assets", &show_assets);
+      if (ImGui::Button("Create New Bitmap", ImVec2(-1, 0)))
+      {
+        show_bitmap_editor = true;
+        ImGui::SetWindowFocus("Bitmap Editor");
+      }
+      ImGui::Separator();
       auto &bitmaps = markup_renderer.get_bitmaps();
       for (const auto &pair : bitmaps)
       {
@@ -647,10 +655,21 @@ auto main() -> int
         std::string name;
         std::string code;
       };
-      static std::vector<snippet_t> snippets = {{"Status Bar", "<rect x=\"0\" y=\"54\" w=\"128\" h=\"10\" fill=\"true\" />\n<text x=\"5\" y=\"56\" text=\"SYSTEM OK\" />"},
-                                                {"Centered Header", "<text x=\"32\" y=\"2\" scale=\"2\" text=\"DASHBOARD\" />"},
-                                                {"Blinking Warning", "<text x=\"10\" y=\"20\" text=\"WARNING\" pulse=\"2\" />"},
-                                                {"Progress Bar", "<progress x=\"10\" y=\"40\" w=\"100\" h=\"8\" value=\"{battery}\" max=\"100\" />"}};
+      static std::vector<snippet_t> snippets = {
+          {"Status Bar", "<rect x=\"0\" y=\"54\" w=\"128\" h=\"10\" fill=\"true\" />\n<text x=\"5\" y=\"56\" text=\"SYSTEM OK\" />"},
+          {"Centered Header", "<text x=\"32\" y=\"2\" scale=\"2\" text=\"DASHBOARD\" />"},
+          {"Blinking Warning", "<text x=\"10\" y=\"20\" text=\"WARNING\" pulse=\"2\" />"},
+          {"Progress Bar", "<progress x=\"10\" y=\"40\" w=\"100\" h=\"8\" value=\"{battery}\" max=\"100\" />"},
+          {"[GALLERY] Full Demo",
+           "<screen width=\"128\" height=\"64\">\n    <rect x=\"0\" y=\"0\" w=\"128\" h=\"10\" fill=\"true\" />\n    <text x=\"2\" y=\"1\" text=\"SYSTEM MONITOR\" scale=\"1\" color=\"#000000\" />\n    <text x=\"100\" y=\"1\" "
+           "text=\"{battery}\" scale=\"1\" />\n    <if condition=\"{battery} < 20\">\n        <text x=\"50\" y=\"1\" text=\"LOW BATT!\" pulse=\"2\" />\n        <rect x=\"0\" y=\"0\" w=\"128\" h=\"10\" fill=\"true\" color=\"#FF0000\" />\n  "
+           "  </if>\n    <group x=\"5\" y=\"15\">\n        <text x=\"0\" y=\"0\" text=\"SENSORS:\" />\n        <for each=\"s\" in=\"sensors\">\n            <group y=\"{item_index} * 10 + 10\">\n                <text x=\"0\" y=\"0\" "
+           "text=\"{s.name}\" />\n                <progress x=\"40\" y=\"0\" w=\"50\" h=\"6\" value=\"{s.value}\" max=\"100\" />\n            </group>\n        </for>\n    </group>\n    <group x=\"5\" y=\"45\">\n        <text x=\"0\" "
+           "y=\"0\" text=\"HISTORY:\" />\n        <graph x=\"40\" y=\"0\" w=\"80\" h=\"15\" data=\"drone_history\" />\n    </group>\n</screen>"},
+          {"[GALLERY] Drone HUD", "<screen width=\"128\" height=\"64\">\n    <rect x=\"0\" y=\"0\" w=\"100%\" h=\"12\" fill=\"true\" color=\"#222222\" />\n    <text x=\"4\" y=\"2\" scale=\"1\" text=\"DRONE-HUD v2.0\" />\n    <group "
+                                  "x=\"90\" y=\"2\">\n        <bitmap src=\"icon_battery\" x=\"0\" y=\"0\" />\n        <text x=\"15\" y=\"0\" text=\"{battery}\" />\n    </group>\n    <group x=\"0\" y=\"15\">\n        <circle cx=\"64\" "
+                                  "cy=\"20\" r=\"10\" fill=\"false\" />\n        <line x1=\"54\" y1=\"20\" x2=\"74\" y2=\"20\" />\n        <line x1=\"64\" y1=\"10\" x2=\"64\" y2=\"30\" />\n    </group>\n    <group x=\"4\" y=\"45\">\n      "
+                                  "  <text x=\"0\" y=\"0\" text=\"ALT:\" />\n        <graph x=\"25\" y=\"0\" w=\"40\" h=\"12\" data=\"alt_history\" />\n    </group>\n</screen>"}};
 
       for (const auto &s : snippets)
       {
@@ -748,6 +767,71 @@ auto main() -> int
       {
         ImGui::TextDisabled("Select an element to edit properties.");
       }
+      ImGui::End();
+    }
+
+    // Bitmap Editor
+    if (show_bitmap_editor)
+    {
+      ImGui::Begin("Bitmap Editor", &show_bitmap_editor);
+
+      static int edit_w = 8;
+      static int edit_h = 8;
+      static std::vector<bool> pixels(16 * 16, false); // Max size
+      static char bitmap_name[64] = "new_icon";
+
+      ImGui::InputText("Name", bitmap_name, 64);
+
+      if (ImGui::Button("8x8"))
+      {
+        edit_w = edit_h = 8;
+        pixels.assign(16 * 16, false);
+      }
+      ImGui::SameLine();
+      if (ImGui::Button("16x16"))
+      {
+        edit_w = edit_h = 16;
+        pixels.assign(16 * 16, false);
+      }
+      ImGui::SameLine();
+      if (ImGui::Button("Clear"))
+      {
+        std::fill(pixels.begin(), pixels.end(), false);
+      }
+
+      ImGui::Separator();
+
+      float cell_size = 20.0f;
+      float start_x = ImGui::GetCursorPosX();
+
+      for (int y = 0; y < edit_h; ++y)
+      {
+        for (int x = 0; x < edit_w; ++x)
+        {
+          ImGui::PushID(y * edit_w + x);
+          bool p = pixels[y * edit_w + x];
+          ImVec4 color = p ? ImVec4(1, 1, 1, 1) : ImVec4(0.2f, 0.2f, 0.2f, 1);
+
+          if (ImGui::ColorButton("##pixel", color, ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoDragDrop, ImVec2(cell_size, cell_size)))
+          {
+            pixels[y * edit_w + x] = !p;
+          }
+          if (x < edit_w - 1)
+            ImGui::SameLine();
+          ImGui::PopID();
+        }
+        ImGui::SetCursorPosX(start_x);
+      }
+
+      ImGui::Separator();
+      if (ImGui::Button("Register Bitmap", ImVec2(-1, 0)))
+      {
+        std::vector<bool> actual_pixels(edit_w * edit_h);
+        for (int i = 0; i < edit_w * edit_h; ++i)
+          actual_pixels[i] = pixels[i];
+        markup_renderer.register_bitmap(bitmap_name, bitmap_t(edit_w, edit_h, actual_pixels));
+      }
+
       ImGui::End();
     }
 

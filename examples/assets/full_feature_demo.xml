@@ -1,0 +1,49 @@
+<screen width="128" height="64">
+    <!-- 
+        Full Feature Demo
+        Showcasing all available markup tags and dynamic logic.
+    -->
+
+    <!-- 1. Background and Header -->
+    <rect x="0" y="0" w="128" h="10" fill="true" />
+    <text x="2" y="1" text="SYSTEM MONITOR" scale="1" color="#000000" />
+    <text x="100" y="1" text="{battery}" scale="1" />
+
+    <!-- 2. Conditional Rendering -->
+    <if condition="{battery} < 20">
+        <text x="50" y="1" text="LOW BATT!" pulse="2" />
+        <rect x="0" y="0" w="128" h="10" fill="true" color="#FF0000" />
+    </if>
+
+    <!-- 3. Dynamic Lists and Instrumentation -->
+    <group x="5" y="15">
+        <text x="0" y="0" text="SENSORS:" />
+        
+        <!-- Loop through sensor list (Mock Data) -->
+        <for each="s" in="sensors">
+            <group y="{item_index} * 10 + 10">
+                <text x="0" y="0" text="{s.name}" />
+                <progress x="40" y="0" w="50" h="6" value="{s.value}" max="100" />
+                
+                <if condition="{s.value} > 80">
+                    <text x="95" y="0" text="!!!" pulse="1" />
+                </if>
+            </group>
+        </for>
+    </group>
+
+    <!-- 4. Data Visualization -->
+    <group x="5" y="45">
+        <text x="0" y="0" text="HISTORY:" />
+        <graph x="40" y="0" w="80" h="15" data="drone_history" />
+    </group>
+
+    <!-- 5. Miscellaneous Components -->
+    <line x1="0" y1="62" x2="128" y2="62" />
+    <circle cx="120" cy="55" r="4" fill="false" />
+    
+    <if condition="{status_ok} == true">
+        <bitmap src="icon_drone" x="114" y="49" />
+    </if>
+
+</screen>
