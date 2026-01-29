@@ -24,6 +24,22 @@ auto MarkupRenderer::load_layout(const std::string &filename) -> bool
   return true;
 }
 
+auto MarkupRenderer::load_layout_from_string(const std::string &xml_content) -> bool
+{
+  m_root = SimpleMarkupParser::parse(xml_content);
+  if (!m_root)
+  {
+    // Don't log error here as it might be incomplete while typing
+    return false;
+  }
+
+  m_id_map.clear();
+  m_visibility_map.clear();
+  m_text_map.clear();
+  build_id_map(m_root);
+  return true;
+}
+
 auto MarkupRenderer::build_id_map(std::shared_ptr<Element> element) -> void
 {
   if (!element)

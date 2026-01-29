@@ -18,6 +18,14 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(imgui)
 
+# Fetch ImGuiColorTextEdit
+FetchContent_Declare(
+  imgui_color_text_edit
+  GIT_REPOSITORY https://github.com/BalazsJako/ImGuiColorTextEdit.git
+  GIT_TAG master
+)
+FetchContent_MakeAvailable(imgui_color_text_edit)
+
 # Create ImGui library
 add_library(imgui STATIC
   ${imgui_SOURCE_DIR}/imgui.cpp
@@ -33,6 +41,15 @@ target_include_directories(imgui PUBLIC
   ${imgui_SOURCE_DIR}/backends
 )
 target_link_libraries(imgui PUBLIC glfw ${OPENGL_LIBRARIES})
+
+# Create ImGuiColorTextEdit library
+add_library(ImGuiColorTextEditLib STATIC
+  ${imgui_color_text_edit_SOURCE_DIR}/TextEditor.cpp
+)
+target_include_directories(ImGuiColorTextEditLib PUBLIC
+  ${imgui_color_text_edit_SOURCE_DIR}
+)
+target_link_libraries(ImGuiColorTextEditLib PUBLIC imgui)
 
 # Include directories
 include_directories(${CMAKE_SOURCE_DIR}/include)
@@ -125,4 +142,20 @@ target_link_libraries(styleable-screen-demo
   ${OPENGL_LIBRARIES}
   glfw
   GLEW::GLEW
+)
+
+# Live Markup Editor
+add_executable(live-markup-editor
+  examples/live_markup_editor.cpp
+  ${EXAMPLE_SOURCES}
+)
+target_include_directories(live-markup-editor PRIVATE
+  ${imgui_color_text_edit_SOURCE_DIR}
+)
+target_link_libraries(live-markup-editor
+  ${OPENGL_LIBRARIES}
+  glfw
+  GLEW::GLEW
+  imgui
+  ImGuiColorTextEditLib
 )

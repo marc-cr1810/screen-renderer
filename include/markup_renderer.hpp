@@ -17,6 +17,9 @@ public:
   // Load layout from XML file
   auto load_layout(const std::string &filename) -> bool;
 
+  // Load layout from XML string
+  auto load_layout_from_string(const std::string &xml_content) -> bool;
+
   // Render current layout to screen
   auto render(screen_t &screen) -> void;
 
