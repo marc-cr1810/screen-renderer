@@ -200,6 +200,11 @@ auto markup_renderer_t::set_data(const std::string &key, const std::string &valu
   m_data[key] = value;
 }
 
+auto markup_renderer_t::set_data_list(const std::string &key, const std::vector<std::string> &values) -> void
+{
+  m_data_lists[key] = values;
+}
+
 auto markup_renderer_t::get_data(const std::string &key, const std::string &default_value) const -> std::string
 {
   auto it = m_data.find(key);
@@ -521,12 +526,39 @@ auto markup_renderer_t::render_element(screen_t &screen, const std::shared_ptr<e
   if (element->get_name() == "if")
   {
     std::string condition = get_attr("condition");
-    if (get_data(condition) == "true" || get_data(condition) == "1")
+    if (evaluate_condition(condition))
     {
       for (auto &child : element->get_children())
       {
         render_element(screen, child, parent_x, parent_y, parent_w, parent_h);
       }
+    }
+    return;
+  }
+
+  // Loop support
+  if (element->get_name() == "for")
+  {
+    std::string each = get_attr("each");
+    std::string in = get_attr("in");
+
+    auto it = m_data_lists.find(in);
+    if (!each.empty() && !in.empty() && it != m_data_lists.end())
+    {
+      const auto &items = it->second;
+      auto old_data = m_data;
+
+      for (size_t i = 0; i < items.size(); ++i)
+      {
+        m_data[each] = items[i];
+        m_data[each + "_index"] = std::to_string(i);
+
+        for (auto &child : element->get_children())
+        {
+          render_element(screen, child, parent_x, parent_y, parent_w, parent_h);
+        }
+      }
+      m_data = old_data;
     }
     return;
   }
@@ -684,6 +716,78 @@ auto markup_renderer_t::render_element(screen_t &screen, const std::shared_ptr<e
       screen.draw_bitmap(m_bitmaps.at(src), x, y);
     }
   }
+  else if (element->get_name() == "progress")
+  {
+    int x = parent_x + get_int_attr("x", 0, parent_w);
+    int y = parent_y + get_int_attr("y", 0, parent_h);
+    int w = get_int_attr("w", 20, parent_w);
+    int h = get_int_attr("h", 5, parent_h);
+    float value = get_int_attr("value", 0);
+    float max = get_int_attr("max", 100);
+
+    if (max <= 0)
+      max = 1;
+    float percent = std::max(0.0f, std::min(1.0f, value / max));
+
+    screen.draw_rect(x, y, w, h, true); // Border
+    if (percent > 0)
+    {
+      int fill_w = (int)(percent * (w - 2));
+      if (fill_w > 0)
+      {
+        for (int i = 0; i < h - 2; ++i)
+        {
+          screen.draw_line(x + 1, y + 1 + i, x + fill_w, y + 1 + i, true);
+        }
+      }
+    }
+  }
+  else if (element->get_name() == "graph")
+  {
+    int x = parent_x + get_int_attr("x", 0, parent_w);
+    int y = parent_y + get_int_attr("y", 0, parent_h);
+    int w = get_int_attr("w", 30, parent_w);
+    int h = get_int_attr("h", 10, parent_h);
+    std::string data_key = get_attr("data");
+
+    auto it = m_data_lists.find(data_key);
+    if (!data_key.empty() && it != m_data_lists.end())
+    {
+      const auto &items = it->second;
+      if (!items.empty())
+      {
+        float max_val = 1.0f;
+        std::vector<float> values;
+        for (const auto &s : items)
+        {
+          try
+          {
+            float v = std::stof(s);
+            values.push_back(v);
+            if (v > max_val)
+              max_val = v;
+          }
+          catch (...)
+          {
+          }
+        }
+
+        if (!values.empty())
+        {
+          screen.draw_rect(x, y, w, h, true);
+          int n = (int)values.size();
+          for (int i = 0; i < n - 1 && i < w - 2; ++i)
+          {
+            int x1 = x + 1 + i;
+            int x2 = x + 2 + i;
+            int y1 = y + h - 2 - (int)((values[i] / max_val) * (h - 3));
+            int y2 = y + h - 2 - (int)((values[i + 1] / max_val) * (h - 3));
+            screen.draw_line(x1, y1, x2, y2, true);
+          }
+        }
+      }
+    }
+  }
 
   // Render children (propagate offsets/parents)
   for (auto &child : element->get_children())
@@ -692,6 +796,86 @@ auto markup_renderer_t::render_element(screen_t &screen, const std::shared_ptr<e
     // Actually, group/hbox/vbox return early, so this only hits elements that aren't those but have children.
     render_element(screen, child, parent_x, parent_y, parent_w, parent_h);
   }
+}
+
+auto markup_renderer_t::evaluate_condition(const std::string &expression) -> bool
+{
+  if (expression.empty())
+    return true;
+
+  // Simple direct boolean check
+  if (expression == "true" || expression == "1")
+    return true;
+  if (expression == "false" || expression == "0")
+    return false;
+
+  // Check if it's a data key directly
+  std::string data_val = get_data(expression);
+  if (!data_val.empty())
+  {
+    return data_val == "true" || data_val == "1";
+  }
+
+  // Basic expression evaluation: "{var} op value"
+  // 1. Resolve variables
+  std::string resolved = expression;
+  size_t start_pos = 0;
+  while ((start_pos = resolved.find('{', start_pos)) != std::string::npos)
+  {
+    size_t end_pos = resolved.find('}', start_pos);
+    if (end_pos == std::string::npos)
+      break;
+    std::string key = resolved.substr(start_pos + 1, end_pos - start_pos - 1);
+    std::string val = get_data(key, "0");
+    resolved.replace(start_pos, end_pos - start_pos + 1, val);
+    start_pos += val.length();
+  }
+
+  // 2. Find operator
+  std::string ops[] = {"==", "!=", "<=", ">=", "<", ">"};
+  for (const auto &op : ops)
+  {
+    size_t op_pos = resolved.find(op);
+    if (op_pos != std::string::npos)
+    {
+      std::string left = resolved.substr(0, op_pos);
+      std::string right = resolved.substr(op_pos + op.length());
+      // Trim
+      left.erase(0, left.find_first_not_of(" "));
+      left.erase(left.find_last_not_of(" ") + 1);
+      right.erase(0, right.find_first_not_of(" "));
+      right.erase(right.find_last_not_of(" ") + 1);
+
+      try
+      {
+        float l_val = std::stof(left);
+        float r_val = std::stof(right);
+
+        if (op == "==")
+          return l_val == r_val;
+        if (op == "!=")
+          return l_val != r_val;
+        if (op == "<=")
+          return l_val <= r_val;
+        if (op == ">=")
+          return l_val >= r_val;
+        if (op == "<")
+          return l_val < r_val;
+        if (op == ">")
+          return l_val > r_val;
+      }
+      catch (...)
+      {
+        // String comparison fallback
+        if (op == "==")
+          return left == right;
+        if (op == "!=")
+          return left != right;
+      }
+    }
+  }
+
+  return false;
 }
 
 } // namespace screen_renderer

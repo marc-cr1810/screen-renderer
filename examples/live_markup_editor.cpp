@@ -10,6 +10,8 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <map>
+#include <algorithm>
 
 using namespace screen_renderer;
 
@@ -124,6 +126,52 @@ auto get_suggestion_context(const std::string &line, int column) -> suggestion_c
   }
 }
 
+void update_element_in_editor(TextEditor &editor, std::shared_ptr<element_t> element)
+{
+  auto lines = editor.GetTextLines();
+  if (element->get_start_line() <= 0 || element->get_start_line() > (int)lines.size())
+    return;
+
+  std::string line = lines[element->get_start_line() - 1];
+  std::string new_tag = "<" + element->get_name();
+  for (const auto &pair : element->get_attributes())
+    new_tag += " " + pair.first + "=\"" + pair.second + "\"";
+
+  if (line.find("/>") != std::string::npos)
+    new_tag += " />";
+  else
+    new_tag += ">";
+
+  size_t indent = line.find_first_not_of(" \t");
+  if (indent != std::string::npos)
+    new_tag = line.substr(0, indent) + new_tag;
+
+  lines[element->get_start_line() - 1] = new_tag;
+  editor.SetTextLines(lines);
+}
+
+void render_tree_node(TextEditor &editor, std::shared_ptr<element_t> element)
+{
+  ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick;
+  if (element->get_children().empty())
+    flags |= ImGuiTreeNodeFlags_Leaf;
+
+  bool open = ImGui::TreeNodeEx((void *)element.get(), flags, "%s", element->get_name().c_str());
+  if (ImGui::IsItemClicked())
+  {
+    editor.SetCursorPosition(TextEditor::Coordinates(element->get_start_line() - 1, 0));
+  }
+
+  if (open)
+  {
+    for (auto &child : element->get_children())
+    {
+      render_tree_node(editor, child);
+    }
+    ImGui::TreePop();
+  }
+}
+
 auto main() -> int
 {
   if (!glfwInit())
@@ -195,6 +243,16 @@ auto main() -> int
 
   float animation_time = 0.0f;
 
+  // Window visibility flags
+  static bool show_xml_editor = true;
+  static bool show_context_help = true;
+  static bool show_screen_preview = true;
+  static bool show_structure = false;
+  static bool show_mock_data = false;
+  static bool show_assets = false;
+  static bool show_snippets = false;
+  static bool show_inspector = true;
+
   while (!glfwWindowShouldClose(window))
   {
     glfwPollEvents();
@@ -205,21 +263,40 @@ auto main() -> int
     ImGui::NewFrame();
     ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport());
 
-    // Editor Window
+    if (ImGui::BeginMainMenuBar())
     {
-      ImGui::Begin("XML Editor", nullptr, ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_MenuBar);
-      if (ImGui::BeginMenuBar())
+      if (ImGui::BeginMenu("File"))
       {
-        if (ImGui::BeginMenu("File"))
+        if (ImGui::MenuItem("Save", "Ctrl+S"))
         {
-          if (ImGui::MenuItem("Save"))
-          {
-            // Logic to save to file could go here
-          }
-          ImGui::EndMenu();
+          // TODO: Implement save
         }
-        ImGui::EndMenuBar();
+        ImGui::Separator();
+        if (ImGui::MenuItem("Exit", "Alt+F4"))
+        {
+          glfwSetWindowShouldClose(window, true);
+        }
+        ImGui::EndMenu();
       }
+      if (ImGui::BeginMenu("View"))
+      {
+        ImGui::MenuItem("XML Editor", nullptr, &show_xml_editor);
+        ImGui::MenuItem("Context Help", nullptr, &show_context_help);
+        ImGui::MenuItem("Screen Preview", nullptr, &show_screen_preview);
+        ImGui::MenuItem("Structure", nullptr, &show_structure);
+        ImGui::MenuItem("Mock Data", nullptr, &show_mock_data);
+        ImGui::MenuItem("Assets", nullptr, &show_assets);
+        ImGui::MenuItem("Snippets", nullptr, &show_snippets);
+        ImGui::MenuItem("Inspector", nullptr, &show_inspector);
+        ImGui::EndMenu();
+      }
+      ImGui::EndMainMenuBar();
+    }
+
+    // Editor Window
+    if (show_xml_editor)
+    {
+      ImGui::Begin("XML Editor", &show_xml_editor, ImGuiWindowFlags_HorizontalScrollbar);
 
       // Render editor
       editor.Render("TextEditor");
@@ -249,8 +326,9 @@ auto main() -> int
     }
 
     // Suggestions Window
+    if (show_context_help)
     {
-      ImGui::Begin("Context Help");
+      ImGui::Begin("Context Help", &show_context_help);
 
       auto cursor = editor.GetCursorPosition();
       std::string line = editor.GetCurrentLineText();
@@ -311,8 +389,9 @@ auto main() -> int
     }
 
     // Screen View
+    if (show_screen_preview)
     {
-      ImGui::Begin("Screen Preview");
+      ImGui::Begin("Screen Preview", &show_screen_preview);
 
       // Logical Update
       markup_renderer.set_text("counter", std::to_string((int)animation_time));
@@ -357,10 +436,59 @@ auto main() -> int
         auto clicked_element = markup_renderer.get_element_at_pos(screen_x, screen_y);
         if (clicked_element && clicked_element->get_start_line() > 0)
         {
-          editor.SetCursorPosition({clicked_element->get_start_line() - 1, 0});
-          // Optional: Highlight selection
-          // editor.SetSelection({clicked_element->start_line - 1, 0}, {clicked_element->end_line - 1, 1000});
+          editor.SetCursorPosition(TextEditor::Coordinates(clicked_element->get_start_line() - 1, 0));
         }
+      }
+
+      // Handle Dragging
+      static std::shared_ptr<element_t> dragging_element = nullptr;
+      if (ImGui::IsMouseDown(0) && ImGui::IsItemActive())
+      {
+        auto cur_line = editor.GetCursorPosition().mLine + 1;
+        dragging_element = markup_renderer.get_element_at_line(cur_line);
+        if (dragging_element)
+        {
+          ImVec2 delta = ImGui::GetIO().MouseDelta;
+          float scale_x = draw_width / (float)APP_WIDTH;
+          float scale_y = draw_height / (float)APP_HEIGHT;
+
+          int dx = (int)(delta.x / scale_x);
+          int dy = (int)(delta.y / scale_y);
+
+          if (dx != 0 || dy != 0)
+          {
+            if (dragging_element->get_name() == "line")
+            {
+              int x1 = dragging_element->get_int_attribute("x1", 0) + dx;
+              int y1 = dragging_element->get_int_attribute("y1", 0) + dy;
+              int x2 = dragging_element->get_int_attribute("x2", 0) + dx;
+              int y2 = dragging_element->get_int_attribute("y2", 0) + dy;
+              dragging_element->add_attribute("x1", std::to_string(x1));
+              dragging_element->add_attribute("y1", std::to_string(y1));
+              dragging_element->add_attribute("x2", std::to_string(x2));
+              dragging_element->add_attribute("y2", std::to_string(y2));
+            }
+            else if (dragging_element->get_name() == "circle")
+            {
+              int cx = dragging_element->get_int_attribute("cx", 0) + dx;
+              int cy = dragging_element->get_int_attribute("cy", 0) + dy;
+              dragging_element->add_attribute("cx", std::to_string(cx));
+              dragging_element->add_attribute("cy", std::to_string(cy));
+            }
+            else
+            {
+              int x = dragging_element->get_int_attribute("x", 0) + dx;
+              int y = dragging_element->get_int_attribute("y", 0) + dy;
+              dragging_element->add_attribute("x", std::to_string(x));
+              dragging_element->add_attribute("y", std::to_string(y));
+            }
+            update_element_in_editor(editor, dragging_element);
+          }
+        }
+      }
+      else
+      {
+        dragging_element = nullptr;
       }
 
       // Draw Highlight Overlay
@@ -421,9 +549,21 @@ auto main() -> int
       ImGui::End();
     }
 
-    // Mock Data Panel
+    // Structure Tree
+    if (show_structure)
     {
-      ImGui::Begin("Mock Data");
+      ImGui::Begin("Structure", &show_structure);
+      if (markup_renderer.get_root())
+      {
+        render_tree_node(editor, markup_renderer.get_root());
+      }
+      ImGui::End();
+    }
+
+    // Mock Data Panel
+    if (show_mock_data)
+    {
+      ImGui::Begin("Mock Data", &show_mock_data);
       static std::map<std::string, std::string> mock_vars = {{"battery", "80%"}, {"drone_count", "12"}, {"status_ok", "true"}, {"status_warning", "false"}};
       for (auto &pair : mock_vars)
       {
@@ -447,22 +587,85 @@ auto main() -> int
     }
 
     // Asset Browser
+    if (show_assets)
     {
-      ImGui::Begin("Assets");
-      std::vector<std::string> assets = {"icon_drone", "icon_battery", "icon_arrow_up"};
-      for (const auto &name : assets)
+      ImGui::Begin("Assets", &show_assets);
+      auto &bitmaps = markup_renderer.get_bitmaps();
+      for (const auto &pair : bitmaps)
       {
-        if (ImGui::Selectable(name.c_str()))
+        ImGui::PushID(pair.first.c_str());
+
+        // Draw small thumbnail (2x scale)
+        int thumb_scale = 2;
+        ImVec2 size((float)pair.second.get_width() * thumb_scale, (float)pair.second.get_height() * thumb_scale);
+        ImVec2 p = ImGui::GetCursorScreenPos();
+
+        // Interaction area
+        ImGui::InvisibleButton("##thumb", ImVec2(ImGui::GetContentRegionAvail().x, size.y + 4));
+        if (ImGui::IsItemHovered())
         {
-          editor.InsertText("<bitmap src=\"" + name + "\" x=\"0\" y=\"0\" />");
+          ImGui::GetWindowDrawList()->AddRectFilled(ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), ImGui::GetColorU32(ImGuiCol_HeaderHovered));
+        }
+        if (ImGui::IsItemClicked())
+        {
+          editor.InsertText("<bitmap src=\"" + pair.first + "\" x=\"0\" y=\"0\" />");
+        }
+
+        // Draw the bitmap pixels
+        auto draw = ImGui::GetWindowDrawList();
+        ImVec2 thumb_p = ImVec2(p.x, p.y + 2); // Small vertical padding
+        for (size_t y = 0; y < pair.second.get_height(); ++y)
+        {
+          for (size_t x = 0; x < pair.second.get_width(); ++x)
+          {
+            if (pair.second.get_pixel(x, y))
+            {
+              draw->AddRectFilled(ImVec2(thumb_p.x + x * thumb_scale, thumb_p.y + y * thumb_scale), ImVec2(thumb_p.x + (x + 1) * thumb_scale, thumb_p.y + (y + 1) * thumb_scale), IM_COL32(255, 255, 255, 255));
+            }
+          }
+        }
+
+        // Center name vertically relative to thumbnail
+        ImGui::SetCursorScreenPos(ImVec2(p.x + size.x + 8, p.y + (size.y + 4 - ImGui::GetTextLineHeight()) * 0.5f));
+        ImGui::Text("%s", pair.first.c_str());
+
+        // Restore cursor for next item
+        ImGui::SetCursorScreenPos(ImVec2(p.x, p.y + size.y + 8));
+        ImGui::Dummy(ImVec2(0, 0)); // Grow window boundaries after manual cursor positioning
+
+        ImGui::PopID();
+      }
+      ImGui::End();
+    }
+
+    // Snippets
+    if (show_snippets)
+    {
+      ImGui::Begin("Snippets", &show_snippets);
+      struct snippet_t
+      {
+        std::string name;
+        std::string code;
+      };
+      static std::vector<snippet_t> snippets = {{"Status Bar", "<rect x=\"0\" y=\"54\" w=\"128\" h=\"10\" fill=\"true\" />\n<text x=\"5\" y=\"56\" text=\"SYSTEM OK\" />"},
+                                                {"Centered Header", "<text x=\"32\" y=\"2\" scale=\"2\" text=\"DASHBOARD\" />"},
+                                                {"Blinking Warning", "<text x=\"10\" y=\"20\" text=\"WARNING\" pulse=\"2\" />"},
+                                                {"Progress Bar", "<progress x=\"10\" y=\"40\" w=\"100\" h=\"8\" value=\"{battery}\" max=\"100\" />"}};
+
+      for (const auto &s : snippets)
+      {
+        if (ImGui::Button(s.name.c_str(), ImVec2(-1, 0)))
+        {
+          editor.InsertText(s.code);
         }
       }
       ImGui::End();
     }
 
     // Property Inspector
+    if (show_inspector)
     {
-      ImGui::Begin("Inspector");
+      ImGui::Begin("Inspector", &show_inspector);
 
       int cursor_line = editor.GetCursorPosition().mLine + 1;
       auto selected_element = markup_renderer.get_element_at_line(cursor_line);
@@ -538,23 +741,7 @@ auto main() -> int
 
         if (changed)
         {
-          auto lines = editor.GetTextLines();
-          std::string line = lines[selected_element->get_start_line() - 1];
-          std::string new_tag = "<" + selected_element->get_name();
-          for (const auto &pair : selected_element->get_attributes())
-            new_tag += " " + pair.first + "=\"" + pair.second + "\"";
-
-          if (line.find("/>") != std::string::npos)
-            new_tag += " />";
-          else
-            new_tag += ">";
-
-          size_t indent = line.find_first_not_of(" \t");
-          if (indent != std::string::npos)
-            new_tag = line.substr(0, indent) + new_tag;
-
-          lines[selected_element->get_start_line() - 1] = new_tag;
-          editor.SetTextLines(lines);
+          update_element_in_editor(editor, selected_element);
         }
       }
       else
