@@ -251,6 +251,20 @@ auto simple_markup_parser_t::parse(const std::string &xml_content, std::vector<p
       }
     }
 
+    // Check for comment
+    if (lt_pos + 3 < xml_content.length() && xml_content[lt_pos + 1] == '!' && xml_content[lt_pos + 2] == '-' && xml_content[lt_pos + 3] == '-')
+    {
+      size_t comment_end = xml_content.find("-->", lt_pos + 4);
+      if (comment_end == std::string::npos)
+      {
+        out_errors.push_back({current_line, get_column(xml_content, lt_pos), "Unclosed comment (missing '-->')"});
+        break;
+      }
+      current_line += count_newlines(xml_content, lt_pos, comment_end + 3);
+      pos = comment_end + 3;
+      continue;
+    }
+
     size_t gt_pos = xml_content.find('>', lt_pos);
     if (gt_pos == std::string::npos)
     {

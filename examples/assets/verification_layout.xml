@@ -9,6 +9,7 @@
     </template>
 
     <!-- Layout Testing -->
+    <!-- Main layout container -->
     <vbox x="2" y="2" spacing="2">
         <text style="header" text="ADVANCED PREVIEW" />
         <hbox spacing="4">

@@ -170,7 +170,20 @@ auto main() -> int
 
   // Setup Text Editor
   TextEditor editor;
-  editor.SetLanguageDefinition(TextEditor::LanguageDefinition::CPlusPlus()); // Use C++ highlighting for now as XML might not be built-in or similar enough
+
+  TextEditor::LanguageDefinition lang;
+  lang.mName = "XML";
+  lang.mCommentStart = "<!--";
+  lang.mCommentEnd = "-->";
+
+  // Custom tokens for XML
+  lang.mTokenRegexStrings.push_back({"<[/]?[a-zA-Z0-9]+", TextEditor::PaletteIndex::Keyword});        // Tag start/end
+  lang.mTokenRegexStrings.push_back({"[a-zA-Z0-9_-]+(?=\\=)", TextEditor::PaletteIndex::Identifier}); // Attribute name
+  lang.mTokenRegexStrings.push_back({"\"[^\"]*\"", TextEditor::PaletteIndex::String});                // Attribute value
+  lang.mTokenRegexStrings.push_back({">", TextEditor::PaletteIndex::Keyword});                        // Tag end
+  lang.mTokenRegexStrings.push_back({"/>", TextEditor::PaletteIndex::Keyword});                       // Self-closing tag end
+
+  editor.SetLanguageDefinition(lang);
   // Better yet, check if XML exists? Usually logic/C++/SQL/AngelScript/Lua/Shader.
   // Let's stick to C++ or just set null, or try to define custom later.
   // Actually, standard library usually has C/C++/SQL/Lua. XML might be missing.
