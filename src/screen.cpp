@@ -54,6 +54,11 @@ auto screen_t::get_data() const -> const std::vector<bool> &
 
 auto screen_t::draw_bitmap(const bitmap_t &bitmap, size_t x, size_t y) -> void
 {
+  draw_bitmap(bitmap, x, y, true);
+}
+
+auto screen_t::draw_bitmap(const bitmap_t &bitmap, size_t x, size_t y, bool value) -> void
+{
   for (size_t by = 0; by < bitmap.get_height(); ++by)
   {
     for (size_t bx = 0; bx < bitmap.get_width(); ++bx)
@@ -66,7 +71,7 @@ auto screen_t::draw_bitmap(const bitmap_t &bitmap, size_t x, size_t y) -> void
       {
         if (bitmap.get_pixel(bx, by))
         {
-          set_pixel(screen_x, screen_y, true);
+          set_pixel(screen_x, screen_y, value);
         }
       }
     }
@@ -75,12 +80,17 @@ auto screen_t::draw_bitmap(const bitmap_t &bitmap, size_t x, size_t y) -> void
 
 auto screen_t::draw_text(const font_t &font, const std::string &text, size_t x, size_t y, size_t spacing) -> void
 {
+  draw_text(font, text, x, y, spacing, true);
+}
+
+auto screen_t::draw_text(const font_t &font, const std::string &text, size_t x, size_t y, size_t spacing, bool value) -> void
+{
   size_t cursor_x = x;
 
   for (char c : text)
   {
     bitmap_t char_bitmap = font.get_character(c);
-    draw_bitmap(char_bitmap, cursor_x, y);
+    draw_bitmap(char_bitmap, cursor_x, y, value);
     cursor_x += char_bitmap.get_width() + spacing;
   }
 }

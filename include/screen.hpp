@@ -26,7 +26,9 @@ public:
 
   // Bitmap and text drawing
   auto draw_bitmap(const bitmap_t &bitmap, size_t x, size_t y) -> void;
+  auto draw_bitmap(const bitmap_t &bitmap, size_t x, size_t y, bool value) -> void;
   auto draw_text(const font_t &font, const std::string &text, size_t x, size_t y, size_t spacing = 1) -> void;
+  auto draw_text(const font_t &font, const std::string &text, size_t x, size_t y, size_t spacing, bool value) -> void;
 
   // Drawing primitives
   auto draw_line(int x0, int y0, int x1, int y1, bool value) -> void;

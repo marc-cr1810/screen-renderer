@@ -245,7 +245,7 @@ static void draw_filled_rect(screen_t &screen, int x, int y, int w, int h, bool 
   }
 }
 
-static void draw_text_scaled(screen_t &screen, const font_t &font, const std::string &text, int x, int y, int scale)
+static void draw_text_scaled_with_value(screen_t &screen, const font_t &font, const std::string &text, int x, int y, int scale, bool value)
 {
   int cursor_x = x;
   for (char c : text)
@@ -262,7 +262,7 @@ static void draw_text_scaled(screen_t &screen, const font_t &font, const std::st
           {
             for (int sx = 0; sx < scale; ++sx)
             {
-              screen.set_pixel(cursor_x + col * scale + sx, y + row * scale + sy, true);
+              screen.set_pixel(cursor_x + col * scale + sx, y + row * scale + sy, value);
             }
           }
         }
@@ -270,6 +270,11 @@ static void draw_text_scaled(screen_t &screen, const font_t &font, const std::st
     }
     cursor_x += (bitmap.get_width() + 1) * scale;
   }
+}
+
+static void draw_text_scaled(screen_t &screen, const font_t &font, const std::string &text, int x, int y, int scale)
+{
+  draw_text_scaled_with_value(screen, font, text, x, y, scale, true);
 }
 
 // Draw a large 3x5 digit scaled up by scale factor (Reused from sensor_status_demo logic)
@@ -659,13 +664,17 @@ auto markup_renderer_t::render_element(screen_t &screen, const std::shared_ptr<e
       }
     }
 
+    bool invert = get_bool_attr("invert");
+    bool pixel_value = !invert; // If invert, use false (background); otherwise true (foreground)
+
     if (scale > 1)
     {
-      draw_text_scaled(screen, m_font, content, x, y, scale);
+      // For scaled text, we need to draw manually with the correct pixel value
+      draw_text_scaled_with_value(screen, m_font, content, x, y, scale, pixel_value);
     }
     else
     {
-      screen.draw_text(m_font, content, x, y, 1);
+      screen.draw_text(m_font, content, x, y, 1, pixel_value);
     }
   }
   else if (element->get_name() == "rect")

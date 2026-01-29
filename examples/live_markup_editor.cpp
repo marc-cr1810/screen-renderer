@@ -21,26 +21,7 @@ const int APP_HEIGHT = 64;
 // Initial Layout
 // Initial Layout
 const char *initial_layout = R"(<screen>
-    <style id="header" scale="1" />
-    <style id="big" scale="3" />
-    
-    <rect x="0" y="0" w="128" h="64" fill="false" />
-    <line x1="0" y1="10" x2="127" y2="10" />
-    <text style="header" x="5" y="2" text="LIVE PREVIEW" />
-    
-    <group x="105" y="2">
-        <bitmap src="icon_battery" x="-13" y="0" />
-        <text style="header" x="0" y="0" text="80%" />
-    </group>
-    
-    <group x="10" y="20">
-        <text style="header" x="0" y="0" text="COUNT" />
-        <text id="counter" style="big" x="0" y="10" text="0" />
-        <bitmap src="icon_drone" x="30" y="20" />
-    </group>
-
-    <line x1="0" y1="54" x2="100%" y2="54" />
-    <text id="status" x="5" y="56" text="SYSTEM READY" visible="true" />
+  <text x="10" y="10" text="Hello World" />
 </screen>)";
 
 // Suggestion Database
@@ -276,6 +257,97 @@ auto main() -> int
         if (ImGui::MenuItem("Exit", "Alt+F4"))
         {
           glfwSetWindowShouldClose(window, true);
+        }
+        ImGui::EndMenu();
+      }
+      if (ImGui::BeginMenu("Examples"))
+      {
+        auto load_example = [&](const char *xml)
+        {
+          editor.SetText(xml);
+          std::vector<parse_error_t> errors;
+          markup_renderer.load_layout_from_string(xml, errors);
+        };
+
+        // BASIC EXAMPLES
+        if (ImGui::MenuItem("1. Minimal Starter"))
+        {
+          load_example("<screen>\n  <text x=\"10\" y=\"10\" text=\"Hello World\" />\n</screen>");
+        }
+        if (ImGui::MenuItem("2. Shapes Gallery"))
+        {
+          load_example("<screen>\n  <text x=\"2\" y=\"2\" text=\"SHAPES:\" />\n  <rect x=\"10\" y=\"12\" w=\"20\" h=\"15\" fill=\"false\" />\n  <rect x=\"35\" y=\"12\" w=\"20\" h=\"15\" fill=\"true\" />\n  <circle cx=\"72\" cy=\"19\" "
+                       "r=\"8\" fill=\"false\" />\n  <circle cx=\"97\" cy=\"19\" r=\"8\" fill=\"true\" />\n  <line x1=\"10\" y1=\"35\" x2=\"118\" y2=\"35\" />\n  <line x1=\"10\" y1=\"40\" x2=\"118\" y2=\"50\" />\n</screen>");
+        }
+
+        // UI/DASHBOARD EXAMPLES
+        ImGui::Separator();
+        if (ImGui::MenuItem("3. Digital Watch"))
+        {
+          load_example("<screen>\n  <rect x=\"0\" y=\"0\" w=\"100%\" h=\"100%\" fill=\"false\" />\n  <text x=\"28\" y=\"10\" text=\"CASIO\" scale=\"1\" />\n  <text x=\"20\" y=\"24\" text=\"12:34\" scale=\"3\" />\n  <text x=\"40\" y=\"48\" "
+                       "text=\"MON 29 JAN\" />\n</screen>");
+        }
+        if (ImGui::MenuItem("4. Medical Monitor"))
+        {
+          load_example("<screen>\n  <rect x=\"0\" y=\"0\" w=\"100%\" h=\"10\" fill=\"true\" />\n  <text x=\"4\" y=\"2\" text=\"PATIENT MONITOR\" invert=\"true\" />\n  <text x=\"5\" y=\"20\" text=\"HR: 72 BPM\" />\n  <text x=\"70\" "
+                       "y=\"20\" text=\"SPO2: "
+                       "98%\" />\n  <text x=\"5\" y=\"30\" text=\"TEMP: 36.5C\" />\n  <text x=\"70\" y=\"30\" text=\"BP: 120/80\" />\n</screen>");
+        }
+        if (ImGui::MenuItem("5. Music Player"))
+        {
+          load_example("<screen>\n  <text x=\"30\" y=\"8\" text=\"NOW PLAYING\" scale=\"1\" />\n  <text x=\"20\" y=\"24\" text=\"Neon Dreams\" scale=\"1\" "
+                       "/>\n  <progress x=\"10\" y=\"36\" w=\"108\" h=\"4\" value=\"45\" max=\"100\" />\n  <text x=\"48\" y=\"44\" text=\"01:32 / 03:25\" />\n  <circle cx=\"34\" cy=\"54\" r=\"4\" fill=\"true\" />\n  <circle cx=\"64\" "
+                       "cy=\"54\" r=\"6\" fill=\"true\" />\n  <circle cx=\"94\" cy=\"54\" r=\"4\" fill=\"true\" />\n</screen>");
+        }
+        if (ImGui::MenuItem("6. Retro Game HUD"))
+        {
+          load_example("<screen>\n  <rect x=\"0\" y=\"0\" w=\"100%\" h=\"12\" fill=\"true\" />\n  <text x=\"4\" y=\"2\" text=\"SCORE:9999\" scale=\"1\" invert=\"true\" />\n  <text x=\"80\" y=\"2\" text=\"LIVES:3\" "
+                       "scale=\"1\" invert=\"true\" />\n  <group x=\"5\" y=\"20\">\n    <bitmap src=\"icon_drone\" x=\"0\" y=\"0\" />\n    <bitmap src=\"icon_drone\" x=\"15\" y=\"0\" />\n    <bitmap src=\"icon_drone\" x=\"30\" y=\"0\" "
+                       "/>\n  </group>\n  "
+                       "<text x=\"45\" y=\"50\" text=\"GET READY!\" pulse=\"2\" scale=\"2\" />\n</screen>");
+        }
+        if (ImGui::MenuItem("7. Industrial Control"))
+        {
+          load_example("<screen>\n  <text x=\"4\" y=\"2\" text=\"REACTOR STATUS\" />\n  <line x1=\"0\" y1=\"11\" x2=\"128\" y2=\"11\" />\n  <text x=\"4\" y=\"15\" text=\"TEMP:\" />\n  <progress x=\"40\" y=\"15\" w=\"80\" h=\"6\" "
+                       "value=\"76\" max=\"100\" />\n  <text x=\"4\" y=\"25\" text=\"PRESSURE:\" />\n  <progress x=\"40\" "
+                       "y=\"25\" w=\"80\" h=\"6\" value=\"82\" max=\"100\" />\n  <text x=\"4\" y=\"35\" text=\"COOLANT:\" />\n  <progress x=\"40\" y=\"35\" w=\"80\" h=\"6\" value=\"65\" max=\"100\" />\n  <if condition=\"{status_ok} == "
+                       "true\">\n    <text x=\"40\" y=\"50\" text=\"NOMINAL\" pulse=\"1\" />\n  </if>\n</screen>");
+        }
+
+        // ADVANCED FEATURES
+        ImGui::Separator();
+        if (ImGui::MenuItem("8. Weather Station"))
+        {
+          load_example("<screen>\n  <text x=\"35\" y=\"4\" text=\"WEATHER\" scale=\"1\" />\n  <circle cx=\"64\" cy=\"24\" r=\"12\" fill=\"false\" />\n  <text x=\"46\" y=\"18\" text=\"23°C\" scale=\"2\" />\n  <text x=\"28\" y=\"42\" "
+                       "text=\"Humidity: 65%\" />\n  <text x=\"28\" y=\"52\" text=\"Wind: 12 km/h\" />\n</screen>");
+        }
+        if (ImGui::MenuItem("9. Data Dashboard"))
+        {
+          load_example("<screen>\n  <rect x=\"0\" y=\"0\" w=\"100%\" h=\"10\" fill=\"true\" />\n  <text x=\"4\" y=\"2\" text=\"ANALYTICS\" invert=\"true\" />\n  <group x=\"4\" y=\"14\">\n    <text x=\"0\" y=\"0\" text=\"CPU: 42%\" />\n    "
+                       "<progress "
+                       "x=\"45\" y=\"0\" w=\"75\" h=\"6\" value=\"42\" max=\"100\" />\n  </group>\n  <group x=\"4\" y=\"26\">\n    <text x=\"0\" y=\"0\" text=\"RAM: 68%\" />\n    <progress x=\"45\" y=\"0\" w=\"75\" h=\"6\" value=\"68\" "
+                       "max=\"100\" />\n  </group>\n  <group x=\"4\" y=\"38\">\n    <text x=\"0\" y=\"0\" text=\"DISK: 55%\" />\n    <progress x=\"45\" y=\"0\" w=\"75\" h=\"6\" value=\"55\" max=\"100\" />\n  </group>\n</screen>");
+        }
+        if (ImGui::MenuItem("10. Drone HUD (Advanced)"))
+        {
+          load_example("<screen width=\"128\" height=\"64\">\n  <rect x=\"0\" y=\"0\" w=\"100%\" h=\"12\" fill=\"true\" />\n  <text x=\"4\" y=\"2\" text=\"DRONE-HUD v2.0\" />\n  <group x=\"90\" y=\"2\">\n    <bitmap src=\"icon_battery\" "
+                       "x=\"0\" y=\"0\" />\n    <text x=\"15\" y=\"0\" text=\"{battery}\" />\n  </group>\n  <group x=\"0\" y=\"15\">\n    <circle cx=\"64\" cy=\"20\" r=\"10\" fill=\"false\" />\n    <line x1=\"54\" y1=\"20\" x2=\"74\" "
+                       "y2=\"20\" />\n    <line x1=\"64\" y1=\"10\" x2=\"64\" y2=\"30\" />\n    <if condition=\"{drone_count} > 5\">\n      <rect x=\"34\" y=\"10\" w=\"60\" h=\"20\" fill=\"false\" />\n      <text x=\"40\" y=\"15\" "
+                       "text=\"MULTI-TARGET\" pulse=\"2\" />\n    </if>\n  </group>\n  <text x=\"4\" y=\"45\" text=\"ALT: 152m\" />\n  <text x=\"70\" y=\"45\" text=\"SPD: 45kmh\" />\n</screen>");
+        }
+        if (ImGui::MenuItem("11. System Monitor"))
+        {
+          load_example(
+              "<screen width=\"128\" height=\"64\">\n  <rect x=\"0\" y=\"0\" w=\"128\" h=\"10\" fill=\"true\" />\n  <text x=\"2\" y=\"1\" text=\"SYSTEM MONITOR\" invert=\"true\" />\n  <text x=\"100\" y=\"1\" text=\"{battery}\" "
+              "invert=\"true\" "
+              "/>\n  <if condition=\"{battery} < 20\">\n    <text x=\"50\" y=\"1\" text=\"LOW!\" pulse=\"3\" invert=\"true\" />\n  </if>\n  <group x=\"5\" y=\"15\">\n    <text x=\"0\" y=\"0\" text=\"SENSORS:\" />\n    <for each=\"s\" "
+              "in=\"sensors\">\n      <group y=\"{item_index} * 10 + 10\">\n        <text x=\"0\" y=\"0\" text=\"{s.name}\" />\n        <progress x=\"40\" y=\"0\" w=\"50\" h=\"6\" value=\"{s.value}\" max=\"100\" />\n        <if "
+              "condition=\"{s.value} > 80\">\n          <text x=\"95\" y=\"0\" text=\"!!!\" pulse=\"1\" />\n        </if>\n      </group>\n    </for>\n  </group>\n</screen>");
+        }
+        if (ImGui::MenuItem("12. Minimalist Clock"))
+        {
+          load_example("<screen>\n  <circle cx=\"64\" cy=\"32\" r=\"28\" fill=\"false\" />\n  <line x1=\"64\" y1=\"32\" x2=\"64\" y2=\"12\" />\n  <line x1=\"64\" y1=\"32\" x2=\"80\" y2=\"40\" />\n  <circle cx=\"64\" cy=\"32\" r=\"2\" "
+                       "fill=\"true\" />\n</screen>");
         }
         ImGui::EndMenu();
       }
